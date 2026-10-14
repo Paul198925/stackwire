@@ -250,10 +250,10 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		as := appState{
 			ID: a.ID, Name: a.Name, Description: a.Description, Category: a.Category,
 			Selected: selected[a.ID], Container: containers[a.ID], Internal: a.Internal,
-			Port: st.Cfg.HostPort(a.ID, a.Port), DefaultPort: a.Port,
+			Port: st.Cfg.HostPort(a.ID, a.DefaultHostPort()), DefaultPort: a.DefaultHostPort(),
 		}
 		if st.Cfg.Domain != "" {
-			as.URL = st.Cfg.PublicURL(a.ID, a.Subdomain, a.Port)
+			as.URL = st.Cfg.PublicURL(a.ID, a.Subdomain, a.DefaultHostPort())
 		}
 		for _, set := range a.Settings {
 			as.Settings = append(as.Settings, settingState{set, a.SettingValue(set.Key, st.Cfg.AppSettings[a.ID])})
@@ -310,9 +310,9 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		cfg.Ports = map[string]int{}
 		used := map[int]string{}
 		for _, a := range all {
-			p := a.Port
+			p := a.DefaultHostPort()
 			// Only store ports that differ from the app's default.
-			if v := in.Ports[a.ID]; v != 0 && v != a.Port {
+			if v := in.Ports[a.ID]; v != 0 && v != a.DefaultHostPort() {
 				cfg.Ports[a.ID] = v
 				p = v
 			}

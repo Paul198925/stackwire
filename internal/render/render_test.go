@@ -202,6 +202,25 @@ func TestSidecars(t *testing.T) {
 	}
 }
 
+func TestDefaultHostPort(t *testing.T) {
+	cfg := stack.Default(t.TempDir())
+	apps, err := catalog.Resolve([]string{"qbittorrent", "sabnzbd"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both listen on 8080 inside their containers; SABnzbd moves aside on the host.
+	if got := parse(t, cfg, apps).Services["sabnzbd"].Ports[0]; got != "8085:8080" {
+		t.Errorf("sabnzbd ports = %s", got)
+	}
+	cfg.Ports = map[string]int{"sabnzbd": 9000}
+	if got := parse(t, cfg, apps).Services["sabnzbd"].Ports[0]; got != "9000:8080" {
+		t.Errorf("sabnzbd ports with override = %s", got)
+	}
+	if got := cfg.PublicURL("sabnzbd", "sabnzbd", apps[1].DefaultHostPort()); got != "http://localhost:9000" {
+		t.Errorf("URL = %s", got)
+	}
+}
+
 func TestRequirements(t *testing.T) {
 	if _, err := catalog.Resolve([]string{"seerr"}); err == nil {
 		t.Error("seerr without jellyfin was accepted")

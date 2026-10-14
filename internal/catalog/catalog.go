@@ -22,6 +22,7 @@ type App struct {
 	Description string            `yaml:"description"`
 	Image       string            `yaml:"image"`
 	Port        int               `yaml:"port"`       // web UI port inside the container
+	HostPort    int               `yaml:"hostPort"`   // port on the host if not the same, e.g. because the usual one is taken
 	Subdomain   string            `yaml:"subdomain"`  // defaults to ID
 	Health      string            `yaml:"health"`     // path that returns 200 once the app is ready
 	HealthBody  string            `yaml:"healthBody"` // if set, the response must also be exactly this text
@@ -146,6 +147,15 @@ type JellyfinLibrary struct {
 	// Requires names the app that fills this library; without it the
 	// library is not created.
 	Requires string `yaml:"requires"`
+}
+
+// DefaultHostPort is the port the app's web UI is published on unless the
+// user picks another one.
+func (a App) DefaultHostPort() int {
+	if a.HostPort != 0 {
+		return a.HostPort
+	}
+	return a.Port
 }
 
 // All returns every app in the catalog, sorted by ID.

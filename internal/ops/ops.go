@@ -161,7 +161,7 @@ func Summary(s *Stack, out io.Writer) {
 		if a.Internal {
 			continue
 		}
-		fmt.Fprintf(out, "  %-14s %s\n", a.Name, s.Cfg.PublicURL(a.ID, a.Subdomain, a.Port))
+		fmt.Fprintf(out, "  %-14s %s\n", a.Name, s.Cfg.PublicURL(a.ID, a.Subdomain, a.DefaultHostPort()))
 	}
 	if u := render.UIURL(s.Cfg); u != "" {
 		fmt.Fprintf(out, "  %-14s %s (while `stackwire serve` runs)\n", "stackwire", u)

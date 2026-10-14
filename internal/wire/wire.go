@@ -45,6 +45,7 @@ var drivers = []struct {
 	d    Driver
 }{
 	{"qbittorrent", qbittorrent{}},
+	{"sabnzbd", sabnzbd{}},
 	{"jellyfin", jellyfin{}},
 	{"arr", arr{}},
 	{"prowlarr", prowlarr{}},
@@ -63,7 +64,7 @@ func (c *Ctx) BaseURL(a catalog.App) string {
 	if u := c.BaseURLs[a.ID]; u != "" {
 		return u
 	}
-	return fmt.Sprintf("http://127.0.0.1:%d", c.Cfg.HostPort(a.ID, a.Port))
+	return fmt.Sprintf("http://127.0.0.1:%d", c.Cfg.HostPort(a.ID, a.DefaultHostPort()))
 }
 
 func (c *Ctx) app(id string) (catalog.App, bool) {

@@ -117,7 +117,7 @@ func Compose(cfg *stack.Config, apps []catalog.App) ([]byte, error) {
 		if a.Internal {
 			appBind = "127.0.0.1:"
 		}
-		s.Ports = []string{fmt.Sprintf("%s%d:%d", appBind, cfg.HostPort(a.ID, a.Port), a.Port)}
+		s.Ports = []string{fmt.Sprintf("%s%d:%d", appBind, cfg.HostPort(a.ID, a.DefaultHostPort()), a.Port)}
 		if a.RunAsUser {
 			s.User = fmt.Sprintf("%d:%d", cfg.PUID, cfg.PGID)
 		}
@@ -189,7 +189,7 @@ func SidecarService(a catalog.App, sc catalog.Sidecar) string {
 func addEnv(env map[string]string, cfg *stack.Config, a catalog.App, vars map[string]string) {
 	publicURL := ""
 	if cfg.Domain != "" {
-		publicURL = cfg.PublicURL(a.ID, a.Subdomain, a.Port)
+		publicURL = cfg.PublicURL(a.ID, a.Subdomain, a.DefaultHostPort())
 	}
 	pairs := []string{
 		"{{publicURL}}", publicURL,

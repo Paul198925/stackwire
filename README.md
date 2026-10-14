@@ -11,9 +11,10 @@ Status: early. The first stack is media.
 | App | What it is | What stackwire sets up |
 |---|---|---|
 | Jellyfin | Media server | Admin account, libraries for movies, shows and (with Lidarr) music |
-| Sonarr, Radarr, Lidarr | Managers for shows, movies, music | Login, media folder, qBittorrent as download client, Jellyfin rescan after each import |
+| Sonarr, Radarr, Lidarr | Managers for shows, movies, music | Login, media folder, qBittorrent and SABnzbd as download clients, Jellyfin rescan after each import |
 | Prowlarr | Indexer manager | Login, Sonarr, Radarr and Lidarr registered so indexers sync to them |
-| qBittorrent | Download client | Login, download folders |
+| qBittorrent | Torrent download client | Login, download folders |
+| SABnzbd | Usenet download client | Login, folders, a category per media type, connected to Sonarr, Radarr and Lidarr; you add your usenet provider |
 | Bazarr | Subtitles | Login, connections to Sonarr and Radarr |
 | Seerr | Request page for family and friends | Sign-in through Jellyfin, libraries, Sonarr and Radarr as targets for requests |
 | FlareSolverr | Helper for indexers behind Cloudflare | Registered in Prowlarr under the tag `flaresolverr`; not reachable from outside |

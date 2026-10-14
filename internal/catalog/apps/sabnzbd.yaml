@@ -1,0 +1,17 @@
+id: sabnzbd
+name: SABnzbd
+category: media
+description: Usenet download client
+image: lscr.io/linuxserver/sabnzbd:latest
+port: 8080
+# 8080 on the host is usually taken, often by qBittorrent.
+hostPort: 8085
+health: /api?mode=version
+volumes:
+  - config:/config
+  - data:/data
+dataDirs:
+  - usenet/incomplete
+  - usenet/complete
+todo: Add your usenet provider under Config > Servers.
+driver: sabnzbd

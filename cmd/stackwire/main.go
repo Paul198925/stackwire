@@ -192,7 +192,7 @@ func cmdStatus(args []string) error {
 		if wire.Healthy(ctx, a) {
 			state = "up"
 		}
-		fmt.Printf("%-12s %-5s %s\n", a.ID, state, s.Cfg.PublicURL(a.ID, a.Subdomain, a.Port))
+		fmt.Printf("%-12s %-5s %s\n", a.ID, state, s.Cfg.PublicURL(a.ID, a.Subdomain, a.DefaultHostPort()))
 	}
 	return nil
 }

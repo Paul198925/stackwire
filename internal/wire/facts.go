@@ -26,6 +26,8 @@ func Facts(c *Ctx, a catalog.App) ([]Fact, error) {
 		return arrFacts(c, a)
 	case "qbittorrent":
 		return qbFacts(c, a)
+	case "sabnzbd":
+		return sabnzbdFacts(c, a)
 	case "immich":
 		return immichFacts(c, a)
 	case "paperless":

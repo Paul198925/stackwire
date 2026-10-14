@@ -107,20 +107,21 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// HostPort is the port an app's web UI is published on.
-func (c *Config) HostPort(appID string, containerPort int) int {
+// HostPort is the port an app's web UI is published on: the user's choice,
+// or the app's default.
+func (c *Config) HostPort(appID string, defaultPort int) int {
 	if p := c.Ports[appID]; p != 0 {
 		return p
 	}
-	return containerPort
+	return defaultPort
 }
 
 // PublicURL is where a person reaches the app.
-func (c *Config) PublicURL(appID, subdomain string, containerPort int) string {
+func (c *Config) PublicURL(appID, subdomain string, defaultPort int) string {
 	if c.Domain != "" {
 		return fmt.Sprintf("https://%s.%s", subdomain, c.Domain)
 	}
-	return fmt.Sprintf("http://localhost:%d", c.HostPort(appID, containerPort))
+	return fmt.Sprintf("http://localhost:%d", c.HostPort(appID, defaultPort))
 }
 
 // Abs resolves a path from the config against the stack directory.

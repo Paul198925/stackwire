@@ -30,7 +30,18 @@ func (arr) Wire(c *Ctx, a catalog.App) error {
 		}
 	}
 	if qb, ok := c.app("qbittorrent"); ok {
-		if err := cl.ensureDownloadClient(c, a, qb); err != nil {
+		err := cl.ensureDownloadClient(c, a, qb, "QBittorrent", map[string]any{
+			"username": c.Secrets.Get(stack.AdminUser),
+			"password": c.Secrets.Get(stack.AdminPassword),
+		})
+		if err != nil {
+			return err
+		}
+	}
+	if sab, ok := c.app("sabnzbd"); ok {
+		// Runs after the sabnzbd driver, which stores the key.
+		err := cl.ensureDownloadClient(c, a, sab, "Sabnzbd", map[string]any{"apiKey": c.Secrets.Get(sabnzbdKeySecret)})
+		if err != nil {
 			return err
 		}
 	}
@@ -131,23 +142,24 @@ func (cl *arrClient) firstID(path string) (any, error) {
 	return list[0]["id"], nil
 }
 
-func (cl *arrClient) ensureDownloadClient(c *Ctx, a, qb catalog.App) error {
-	res, exists, err := cl.fromSchema("/downloadclient", "QBittorrent")
+// ensureDownloadClient adds a download client of the given implementation,
+// with the app's category and the credentials in auth.
+func (cl *arrClient) ensureDownloadClient(c *Ctx, a, dl catalog.App, implementation string, auth map[string]any) error {
+	res, exists, err := cl.fromSchema("/downloadclient", implementation)
 	if err != nil {
 		return err
 	}
 	if exists {
-		c.logf(a, "download client qBittorrent exists")
+		c.logf(a, "download client %s exists", dl.Name)
 		return nil
 	}
-	res["name"] = "qBittorrent"
+	res["name"] = dl.Name
 	res["enable"] = true
-	for name, val := range map[string]any{
-		"host":     qb.ID,
-		"port":     qb.Port,
-		"username": c.Secrets.Get(stack.AdminUser),
-		"password": c.Secrets.Get(stack.AdminPassword),
-	} {
+	fields := map[string]any{"host": dl.ID, "port": dl.Port}
+	for k, v := range auth {
+		fields[k] = v
+	}
+	for name, val := range fields {
 		if !setField(res, name, val) {
 			return fmt.Errorf("download client schema has no field %q", name)
 		}
@@ -166,7 +178,7 @@ func (cl *arrClient) ensureDownloadClient(c *Ctx, a, qb catalog.App) error {
 	if err := cl.do("POST", "/downloadclient", res, nil); err != nil {
 		return err
 	}
-	c.logf(a, "download client qBittorrent added (category %s)", a.Arr.Category)
+	c.logf(a, "download client %s added (category %s)", dl.Name, a.Arr.Category)
 	return nil
 }
 
