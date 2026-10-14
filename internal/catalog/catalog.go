@@ -34,8 +34,19 @@ type App struct {
 	RunAsUser   bool              `yaml:"runAsUser"`  // start the container as PUID:PGID (images without PUID support)
 	Todo        string            `yaml:"todo"`       // what only the user can decide, shown after setup
 	Driver      string            `yaml:"driver"`
+	Sidecars    []Sidecar         `yaml:"sidecars"` // further containers the app needs
 	Arr         *ArrSpec          `yaml:"arr"`
 	Jellyfin    *JellyfinSpec     `yaml:"jellyfin"`
+}
+
+// Sidecar is a container that belongs to an app, such as its database. It
+// runs as service <app>-<name> and is only reachable inside the stack.
+type Sidecar struct {
+	Name    string            `yaml:"name"`
+	Image   string            `yaml:"image"`
+	Env     map[string]string `yaml:"env"`
+	Volumes []string          `yaml:"volumes"`
+	ShmSize string            `yaml:"shmSize"`
 }
 
 // ArrSpec configures the Servarr family (Sonarr, Radarr, Prowlarr).

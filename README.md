@@ -17,8 +17,12 @@ Status: early. The first stack is media.
 | Bazarr | Subtitles | Login, connections to Sonarr and Radarr |
 | Seerr | Request page for family and friends | Sign-in through Jellyfin, libraries, Sonarr and Radarr as targets for requests |
 | FlareSolverr | Helper for indexers behind Cloudflare | Registered in Prowlarr under the tag `flaresolverr`; not reachable from outside |
+| Immich | Photo and video backup with phone apps | Admin account (sign-in by email, shown after setup), database, cache and machine learning |
+| Paperless-ngx | Document archive with text recognition | Admin account, database and queue; files dropped into `documents/inbox` in the data folder are read in |
 
 Apps that need another one bring it along: installing Seerr also installs Jellyfin.
+
+Apps that need their own database or cache get them as extra containers, which only the app can reach. Databases live in Docker volumes (`docker volume ls`), everything else in the stack folder.
 
 ## What `stackwire up` does
 

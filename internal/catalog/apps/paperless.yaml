@@ -1,0 +1,48 @@
+id: paperless
+name: Paperless-ngx
+category: documents
+description: Scans, reads and files your documents so you can search them
+image: ghcr.io/paperless-ngx/paperless-ngx:latest
+port: 8000
+health: /accounts/login/
+secrets:
+  PAPERLESS_DB_PASSWORD: password
+  PAPERLESS_SECRET_KEY: password
+env:
+  PAPERLESS_REDIS: redis://paperless-broker:6379
+  PAPERLESS_DBENGINE: postgresql
+  PAPERLESS_DBHOST: paperless-database
+  PAPERLESS_DBUSER: paperless
+  PAPERLESS_DBPASS: ${PAPERLESS_DB_PASSWORD}
+  PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY}
+  # Created on start if it does not exist yet.
+  PAPERLESS_ADMIN_USER: ${ADMIN_USER}
+  PAPERLESS_ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+  # Needed behind the proxy for its CSRF check; left out without a domain.
+  PAPERLESS_URL: "{{publicURL}}"
+  PAPERLESS_TIME_ZONE: "{{timezone}}"
+  USERMAP_UID: "{{puid}}"
+  USERMAP_GID: "{{pgid}}"
+  # Look for new files in the inbox every 10 seconds. File change events do
+  # not reach the container from network shares or from Docker Desktop.
+  PAPERLESS_CONSUMER_POLLING_INTERVAL: "10"
+volumes:
+  - config/data:/usr/src/paperless/data
+  - data/documents/archive:/usr/src/paperless/media
+  - data/documents/inbox:/usr/src/paperless/consume
+  - data/documents/export:/usr/src/paperless/export
+sidecars:
+  - name: broker
+    image: docker.io/valkey/valkey:9-alpine
+    volumes:
+      - volume/broker:/data
+  - name: database
+    image: docker.io/library/postgres:18
+    env:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: ${PAPERLESS_DB_PASSWORD}
+    volumes:
+      - volume/database:/var/lib/postgresql
+todo: Drop files into the documents/inbox folder of your data folder, or upload them in the browser.
+driver: paperless

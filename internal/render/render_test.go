@@ -3,6 +3,7 @@ package render
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -134,6 +135,58 @@ func TestInternalAndRunAsUserApps(t *testing.T) {
 	caddy := Caddyfile(cfg, apps)
 	if strings.Contains(caddy, "flaresolverr.example.com") || !strings.Contains(caddy, "seerr.example.com {") {
 		t.Errorf("proxy routes are wrong:\n%s", caddy)
+	}
+}
+
+func TestSidecars(t *testing.T) {
+	cfg := stack.Default(t.TempDir())
+	apps, err := catalog.Resolve([]string{"immich", "paperless"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf := parse(t, cfg, apps)
+	db, ok := cf.Services["immich-database"]
+	if !ok {
+		t.Fatalf("no immich-database service: %v", cf.Services)
+	}
+	if len(db.Ports) != 0 {
+		t.Errorf("a database is published: %v", db.Ports)
+	}
+	if db.ShmSize != "128mb" || db.Environment["POSTGRES_PASSWORD"] != "${IMMICH_DB_PASSWORD}" || db.Environment["PUID"] != "" {
+		t.Errorf("immich-database = %+v", db)
+	}
+	if db.Volumes[0] != (volume{Type: "volume", Source: "immich-database", Target: "/var/lib/postgresql/data"}) {
+		t.Errorf("database volume = %+v", db.Volumes)
+	}
+	if _, ok := cf.Volumes["immich-model-cache"]; !ok {
+		t.Errorf("named volumes = %v", cf.Volumes)
+	}
+	if got := strings.Join(cf.Services["immich"].DependsOn, ","); got != "immich-machine-learning,immich-redis,immich-database" {
+		t.Errorf("immich depends on %s", got)
+	}
+	p := cf.Services["paperless"]
+	if p.Volumes[0].Source != "./config/paperless/data" || p.Volumes[2].Source != "./data/documents/inbox" {
+		t.Errorf("paperless volumes = %+v", p.Volumes)
+	}
+	// Placeholders: no domain means no PAPERLESS_URL at all.
+	if _, ok := p.Environment["PAPERLESS_URL"]; ok || p.Environment["USERMAP_UID"] != strconv.Itoa(cfg.PUID) {
+		t.Errorf("paperless environment = %v", p.Environment)
+	}
+	cfg.Domain = "example.com"
+	if got := parse(t, cfg, apps).Services["paperless"].Environment["PAPERLESS_URL"]; got != "https://paperless.example.com" {
+		t.Errorf("PAPERLESS_URL = %q", got)
+	}
+	if strings.Contains(Caddyfile(cfg, apps), "immich-database") {
+		t.Error("a sidecar got a proxy route")
+	}
+	cfg.Domain = ""
+	if err := Write(cfg, apps); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []string{"config/paperless/data", "data/documents/inbox", "data/photos"} {
+		if _, err := os.Stat(filepath.Join(cfg.Dir, d)); err != nil {
+			t.Errorf("missing %s", d)
+		}
 	}
 }
 

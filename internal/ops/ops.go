@@ -161,10 +161,10 @@ func Summary(s *Stack, out io.Writer) {
 		if a.Internal {
 			continue
 		}
-		fmt.Fprintf(out, "  %-12s %s\n", a.Name, s.Cfg.PublicURL(a.ID, a.Subdomain, a.Port))
+		fmt.Fprintf(out, "  %-14s %s\n", a.Name, s.Cfg.PublicURL(a.ID, a.Subdomain, a.Port))
 	}
 	if u := render.UIURL(s.Cfg); u != "" {
-		fmt.Fprintf(out, "  %-12s %s (while `stackwire serve` runs)\n", "stackwire", u)
+		fmt.Fprintf(out, "  %-14s %s (while `stackwire serve` runs)\n", "stackwire", u)
 	}
 	fmt.Fprintf(out, "\nLogin for every app: user %q, password in %s (%s).\n",
 		s.Secrets.Get(stack.AdminUser), filepath.Join(s.Cfg.Dir, stack.SecretsFile), stack.AdminPassword)

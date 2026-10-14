@@ -14,6 +14,7 @@ import (
 	"stackwire/internal/catalog"
 	"stackwire/internal/dockerx"
 	"stackwire/internal/ops"
+	"stackwire/internal/render"
 	"stackwire/internal/wire"
 )
 
@@ -149,7 +150,16 @@ func (s *Server) measure() (*dashboardResponse, error) {
 	var wg sync.WaitGroup
 	for i, a := range st.Apps {
 		c := containers[a.ID]
-		u := usage[c.Name]
+		// An app's usage includes its sidecars (database, cache, ...).
+		var u containerUsage
+		services := []string{a.ID}
+		for _, sc := range a.Sidecars {
+			services = append(services, render.SidecarService(a, sc))
+		}
+		for _, svc := range services {
+			x := usage[containers[svc].Name]
+			u.CPU, u.Mem, u.NetRx, u.NetTx = u.CPU+x.CPU, u.Mem+x.Mem, u.NetRx+x.NetRx, u.NetTx+x.NetTx
+		}
 		resp.Apps[i] = dashboardApp{ID: a.ID, Name: a.Name, State: c.State, Uptime: c.Status,
 			CPU: u.CPU, Mem: u.Mem, NetRx: u.NetRx, NetTx: u.NetTx}
 		if c.State != "running" {

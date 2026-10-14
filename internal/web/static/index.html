@@ -317,7 +317,7 @@ function renderDashboard() {
     h("h3", {}, a.name),
     a.facts && a.facts.length
       ? h("dl", { class: "facts" }, ...a.facts.flatMap(f => [h("dt", {}, f.label),
-          h("dd", {}, f.unit === "bytes/s" ? fmtBytes(f.value) + "/s" : f.value.toLocaleString())]))
+          h("dd", {}, f.unit === "bytes/s" ? fmtBytes(f.value) + "/s" : f.unit === "bytes" ? fmtBytes(f.value) : f.value.toLocaleString())]))
       : h("p", {}, "Not available right now."))) : [h("p", { class: "empty" }, "Numbers from your apps appear here once they run.")]));
 
   const rows = [

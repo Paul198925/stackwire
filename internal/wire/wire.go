@@ -50,6 +50,8 @@ var drivers = []struct {
 	{"prowlarr", prowlarr{}},
 	{"bazarr", bazarr{}},
 	{"seerr", seerr{}},
+	{"immich", immich{}},
+	{"paperless", paperless{}},
 }
 
 func NewCtx(cfg *stack.Config, secrets *stack.Secrets, apps []catalog.App, out io.Writer) *Ctx {
@@ -176,6 +178,12 @@ func doJSON(hc *http.Client, method, url string, header map[string]string, in, o
 	for k, v := range header {
 		req.Header.Set(k, v)
 	}
+	return doRequest(hc, req, out)
+}
+
+// doRequest sends a prepared request and decodes a JSON response into out
+// when out is not nil. Status codes from 400 are errors.
+func doRequest(hc *http.Client, req *http.Request, out any) error {
 	resp, err := hc.Do(req)
 	if err != nil {
 		return err
@@ -190,11 +198,11 @@ func doJSON(hc *http.Client, method, url string, header map[string]string, in, o
 		if len(msg) > 400 {
 			msg = msg[:400] + "..."
 		}
-		return &httpError{resp.StatusCode, fmt.Sprintf("%s %s: %s: %s", method, url, resp.Status, msg)}
+		return &httpError{resp.StatusCode, fmt.Sprintf("%s %s: %s: %s", req.Method, req.URL, resp.Status, msg)}
 	}
 	if out != nil && len(bytes.TrimSpace(b)) > 0 {
 		if err := json.Unmarshal(b, out); err != nil {
-			return fmt.Errorf("%s %s: decoding response: %w", method, url, err)
+			return fmt.Errorf("%s %s: decoding response: %w", req.Method, req.URL, err)
 		}
 	}
 	return nil

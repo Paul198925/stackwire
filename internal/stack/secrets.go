@@ -50,6 +50,9 @@ func LoadSecrets(dir string) (*Secrets, error) {
 
 func (s *Secrets) Get(name string) string { return s.vals[name] }
 
+// Set stores a value an app handed out, such as an API key it created.
+func (s *Secrets) Set(name, value string) { s.vals[name] = value }
+
 // Ensure generates the secret if it does not exist yet.
 func (s *Secrets) Ensure(name, kind string) error {
 	if s.vals[name] != "" {
