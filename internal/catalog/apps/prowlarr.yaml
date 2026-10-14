@@ -1,0 +1,17 @@
+id: prowlarr
+name: Prowlarr
+category: media
+description: Indexer manager for Sonarr and Radarr
+image: lscr.io/linuxserver/prowlarr:latest
+port: 9696
+health: /ping
+secrets:
+  PROWLARR_API_KEY: hex32
+env:
+  PROWLARR__AUTH__APIKEY: ${PROWLARR_API_KEY}
+volumes:
+  - config:/config
+driver: prowlarr
+arr:
+  apiVersion: v1
+  apiKeySecret: PROWLARR_API_KEY

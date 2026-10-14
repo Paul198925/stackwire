@@ -1,0 +1,24 @@
+id: jellyfin
+name: Jellyfin
+category: media
+description: Media server for movies and shows
+image: lscr.io/linuxserver/jellyfin:latest
+port: 8096
+health: /health
+# While Jellyfin loads, /health already answers 200 with "Degraded".
+healthBody: Healthy
+volumes:
+  - config:/config
+  - data:/data
+dataDirs:
+  - media/movies
+  - media/tv
+driver: jellyfin
+jellyfin:
+  libraries:
+    - name: Movies
+      type: movies
+      path: /data/media/movies
+    - name: Shows
+      type: tvshows
+      path: /data/media/tv

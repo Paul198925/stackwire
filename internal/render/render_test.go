@@ -1,0 +1,96 @@
+package render
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"gopkg.in/yaml.v3"
+
+	"stackwire/internal/catalog"
+	"stackwire/internal/stack"
+)
+
+func mediaStack(t *testing.T) (*stack.Config, []catalog.App) {
+	t.Helper()
+	cfg := stack.Default(t.TempDir())
+	apps, err := catalog.Resolve(cfg.Apps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg, apps
+}
+
+func parse(t *testing.T, cfg *stack.Config, apps []catalog.App) composeFile {
+	t.Helper()
+	b, err := Compose(cfg, apps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cf composeFile
+	if err := yaml.Unmarshal(b, &cf); err != nil {
+		t.Fatal(err)
+	}
+	return cf
+}
+
+func TestComposeLANMode(t *testing.T) {
+	cfg, apps := mediaStack(t)
+	cfg.Ports = map[string]int{"qbittorrent": 8081}
+	cf := parse(t, cfg, apps)
+
+	if _, ok := cf.Services[ProxyService]; ok {
+		t.Error("proxy present without a domain")
+	}
+	s := cf.Services["sonarr"]
+	if s.Ports[0] != "8989:8989" {
+		t.Errorf("sonarr ports = %v", s.Ports)
+	}
+	if s.Environment["SONARR__AUTH__APIKEY"] != "${SONARR_API_KEY}" || s.Environment["TZ"] == "" {
+		t.Errorf("sonarr environment = %v", s.Environment)
+	}
+	want := []volume{
+		{Type: "bind", Source: "./config/sonarr", Target: "/config"},
+		{Type: "bind", Source: "./data", Target: "/data"},
+	}
+	if len(s.Volumes) != 2 || s.Volumes[0] != want[0] || s.Volumes[1] != want[1] {
+		t.Errorf("sonarr volumes = %v", s.Volumes)
+	}
+	qb := cf.Services["qbittorrent"]
+	if strings.Join(qb.Ports, " ") != "8081:8080 6881:6881 6881:6881/udp" {
+		t.Errorf("qbittorrent ports = %v", qb.Ports)
+	}
+}
+
+func TestComposeDomainMode(t *testing.T) {
+	cfg, apps := mediaStack(t)
+	cfg.Domain, cfg.Email = "example.com", "me@example.com"
+	cf := parse(t, cfg, apps)
+
+	if got := cf.Services["sonarr"].Ports[0]; got != "127.0.0.1:8989:8989" {
+		t.Errorf("sonarr must only listen on loopback, got %s", got)
+	}
+	p, ok := cf.Services[ProxyService]
+	if !ok || len(p.DependsOn) != len(apps) {
+		t.Fatalf("proxy = %+v", p)
+	}
+	caddy := Caddyfile(cfg, apps)
+	for _, want := range []string{"email me@example.com", "jellyfin.example.com {", "reverse_proxy sonarr:8989"} {
+		if !strings.Contains(caddy, want) {
+			t.Errorf("Caddyfile lacks %q:\n%s", want, caddy)
+		}
+	}
+}
+
+func TestWriteCreatesLayout(t *testing.T) {
+	cfg, apps := mediaStack(t)
+	if err := Write(cfg, apps); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{ComposeFile, "config/sonarr", "data/media/tv", "data/media/movies", "data/torrents/tv", "data/torrents/movies"} {
+		if _, err := os.Stat(filepath.Join(cfg.Dir, p)); err != nil {
+			t.Errorf("missing %s", p)
+		}
+	}
+}

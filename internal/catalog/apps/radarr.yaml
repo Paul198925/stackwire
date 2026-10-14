@@ -1,0 +1,24 @@
+id: radarr
+name: Radarr
+category: media
+description: Movie manager
+image: lscr.io/linuxserver/radarr:latest
+port: 7878
+health: /ping
+secrets:
+  RADARR_API_KEY: hex32
+env:
+  RADARR__AUTH__APIKEY: ${RADARR_API_KEY}
+volumes:
+  - config:/config
+  - data:/data
+dataDirs:
+  - media/movies
+  - torrents/movies
+driver: arr
+arr:
+  apiVersion: v3
+  apiKeySecret: RADARR_API_KEY
+  rootFolder: /data/media/movies
+  category: movies
+  prowlarrApp: Radarr

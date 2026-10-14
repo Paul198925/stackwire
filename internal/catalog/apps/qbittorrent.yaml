@@ -1,0 +1,19 @@
+id: qbittorrent
+name: qBittorrent
+category: media
+description: Download client
+image: lscr.io/linuxserver/qbittorrent:latest
+port: 8080
+health: /
+env:
+  WEBUI_PORT: "8080"
+  TORRENTING_PORT: "6881"
+extraPorts:
+  - "6881:6881"
+  - "6881:6881/udp"
+volumes:
+  - config:/config
+  - data:/data
+dataDirs:
+  - torrents
+driver: qbittorrent

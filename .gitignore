@@ -1,0 +1,12 @@
+/bin/
+/stackwire
+/stackwire.exe
+
+# generated stack files when running the CLI inside the repo
+/docker-compose.yml
+/stackwire.yaml
+/.env
+/config/
+/data/
+/caddy/
+/teststack/
