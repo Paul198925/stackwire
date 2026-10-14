@@ -79,6 +79,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/apps/{id}/install", s.auth(s.handleSelect(true)))
 	mux.HandleFunc("POST /api/apps/{id}/remove", s.auth(s.handleSelect(false)))
 	mux.HandleFunc("POST /api/apps/{id}/restart", s.auth(s.handleRestart))
+	mux.HandleFunc("PUT /api/apps/{id}/settings", s.auth(s.handleAppSettings))
 	mux.HandleFunc("GET /api/apps/{id}/logs", s.auth(s.handleLogs))
 	return mux
 }
@@ -180,18 +181,24 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 // --- state ---
 
 type appState struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Category    string   `json:"category"`
-	Selected    bool     `json:"selected"`  // part of the configuration
-	Internal    bool     `json:"internal"`  // has no page to open
-	Requires    []string `json:"requires"`  // names of the apps installed along with it
-	Container   string   `json:"container"` // compose state, empty if there is no container
-	Healthy     bool     `json:"healthy"`
-	URL         string   `json:"url"`  // set in domain mode
-	Port        int      `json:"port"` // published web port
-	DefaultPort int      `json:"defaultPort"`
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Category    string         `json:"category"`
+	Selected    bool           `json:"selected"`  // part of the configuration
+	Internal    bool           `json:"internal"`  // has no page to open
+	Requires    []string       `json:"requires"`  // names of the apps installed along with it
+	Container   string         `json:"container"` // compose state, empty if there is no container
+	Healthy     bool           `json:"healthy"`
+	URL         string         `json:"url"`  // set in domain mode
+	Port        int            `json:"port"` // published web port
+	DefaultPort int            `json:"defaultPort"`
+	Settings    []settingState `json:"settings,omitempty"`
+}
+
+type settingState struct {
+	catalog.Setting
+	Value string `json:"value"`
 }
 
 type stateResponse struct {
@@ -247,6 +254,9 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		}
 		if st.Cfg.Domain != "" {
 			as.URL = st.Cfg.PublicURL(a.ID, a.Subdomain, a.Port)
+		}
+		for _, set := range a.Settings {
+			as.Settings = append(as.Settings, settingState{set, a.SettingValue(set.Key, st.Cfg.AppSettings[a.ID])})
 		}
 		for _, req := range a.Requires {
 			for _, other := range all {
@@ -368,6 +378,46 @@ func (s *Server) edit(w http.ResponseWriter, change func(*stack.Config) error) {
 		return
 	}
 	writeJSON(w, map[string]bool{"ok": true})
+}
+
+func (s *Server) handleAppSettings(w http.ResponseWriter, r *http.Request) {
+	app, err := catalog.Get(r.PathValue("id"))
+	if err != nil {
+		fail(w, http.StatusNotFound, err.Error())
+		return
+	}
+	var in struct {
+		Values map[string]string `json:"values"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&in) != nil {
+		fail(w, http.StatusBadRequest, "bad request")
+		return
+	}
+	s.edit(w, func(cfg *stack.Config) error {
+		values := map[string]string{}
+		for k, v := range in.Values {
+			values[k] = strings.TrimSpace(v)
+		}
+		if err := app.CheckSettings(values); err != nil {
+			return err
+		}
+		// Values equal to the default are not stored, so a better default
+		// in a later version reaches everyone who never changed it.
+		for _, set := range app.Settings {
+			if v, ok := values[set.Key]; ok && v == set.Default {
+				delete(values, set.Key)
+			}
+		}
+		if cfg.AppSettings == nil {
+			cfg.AppSettings = map[string]map[string]string{}
+		}
+		if len(values) == 0 {
+			delete(cfg.AppSettings, app.ID)
+		} else {
+			cfg.AppSettings[app.ID] = values
+		}
+		return nil
+	})
 }
 
 func (s *Server) handlePassword(w http.ResponseWriter, r *http.Request) {

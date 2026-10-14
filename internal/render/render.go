@@ -96,6 +96,10 @@ func Compose(cfg *stack.Config, apps []catalog.App) ([]byte, error) {
 		if a.ID == ProxyService || a.Subdomain == UISubdomain {
 			return nil, fmt.Errorf("app %q uses a reserved name", a.ID)
 		}
+		// Checked here too, since stackwire.yaml can be edited by hand.
+		if err := a.CheckSettings(cfg.AppSettings[a.ID]); err != nil {
+			return nil, fmt.Errorf("appSettings: %w", err)
+		}
 		env := map[string]string{
 			"TZ":   cfg.Timezone,
 			"PUID": strconv.Itoa(cfg.PUID),
@@ -187,12 +191,16 @@ func addEnv(env map[string]string, cfg *stack.Config, a catalog.App, vars map[st
 	if cfg.Domain != "" {
 		publicURL = cfg.PublicURL(a.ID, a.Subdomain, a.Port)
 	}
-	r := strings.NewReplacer(
+	pairs := []string{
 		"{{publicURL}}", publicURL,
 		"{{timezone}}", cfg.Timezone,
 		"{{puid}}", strconv.Itoa(cfg.PUID),
 		"{{pgid}}", strconv.Itoa(cfg.PGID),
-	)
+	}
+	for _, s := range a.Settings {
+		pairs = append(pairs, "{{setting:"+s.Key+"}}", a.SettingValue(s.Key, cfg.AppSettings[a.ID]))
+	}
+	r := strings.NewReplacer(pairs...)
 	for k, v := range vars {
 		if v = r.Replace(v); v != "" {
 			env[k] = v

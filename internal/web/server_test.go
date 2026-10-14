@@ -203,6 +203,45 @@ func TestInstallAddsRequirementsAndRemoveKeepsThem(t *testing.T) {
 	}
 }
 
+func TestAppSettings(t *testing.T) {
+	c, dir := setup(t)
+	login(t, c, dir)
+	if code, out := c.do("PUT", "/api/apps/paperless/settings", `{"values":{"ocrLanguage":"deu"}}`); code != 200 {
+		t.Fatalf("save = %d %v", code, out)
+	}
+	cfg, _ := stack.Load(dir)
+	if cfg.AppSettings["paperless"]["ocrLanguage"] != "deu" {
+		t.Errorf("appSettings = %v", cfg.AppSettings)
+	}
+	c.do("POST", "/api/apps/paperless/install", "")
+	_, st := c.do("GET", "/api/state", "")
+	for _, a := range st["apps"].([]any) {
+		app := a.(map[string]any)
+		if app["id"] == "paperless" {
+			set := app["settings"].([]any)[0].(map[string]any)
+			if set["value"] != "deu" || set["default"] != "eng" || len(set["options"].([]any)) < 2 {
+				t.Errorf("setting in state = %v", set)
+			}
+		}
+	}
+	for name, body := range map[string]string{
+		"not an option": `{"values":{"ocrLanguage":"xyz"}}`,
+		"unknown key":   `{"values":{"nope":"1"}}`,
+	} {
+		if code, _ := c.do("PUT", "/api/apps/paperless/settings", body); code != http.StatusBadRequest {
+			t.Errorf("%s = %d, want 400", name, code)
+		}
+	}
+	// Going back to the default removes the entry.
+	c.do("PUT", "/api/apps/paperless/settings", `{"values":{"ocrLanguage":"eng"}}`)
+	if cfg, _ := stack.Load(dir); cfg.AppSettings != nil && cfg.AppSettings["paperless"] != nil {
+		t.Errorf("default value was stored: %v", cfg.AppSettings)
+	}
+	if code, _ := c.do("PUT", "/api/apps/nope/settings", `{"values":{}}`); code != http.StatusNotFound {
+		t.Errorf("settings of unknown app = %d", code)
+	}
+}
+
 func TestPasswordAndLogout(t *testing.T) {
 	c, dir := setup(t)
 	login(t, c, dir)

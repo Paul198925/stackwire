@@ -4,6 +4,7 @@ package catalog
 import (
 	"embed"
 	"fmt"
+	"regexp"
 	"sort"
 
 	"gopkg.in/yaml.v3"
@@ -35,8 +36,69 @@ type App struct {
 	Todo        string            `yaml:"todo"`       // what only the user can decide, shown after setup
 	Driver      string            `yaml:"driver"`
 	Sidecars    []Sidecar         `yaml:"sidecars"` // further containers the app needs
+	Settings    []Setting         `yaml:"settings"` // options the user can change, used as {{setting:key}} in env
 	Arr         *ArrSpec          `yaml:"arr"`
 	Jellyfin    *JellyfinSpec     `yaml:"jellyfin"`
+}
+
+// Setting is an option of an app that the user can change. Its value is
+// put into the app's environment wherever {{setting:<key>}} appears.
+type Setting struct {
+	Key         string   `yaml:"key" json:"key"`
+	Label       string   `yaml:"label" json:"label"`
+	Description string   `yaml:"description" json:"description,omitempty"`
+	Default     string   `yaml:"default" json:"default"`
+	Options     []Option `yaml:"options" json:"options,omitempty"` // if set, the value must be one of them
+}
+
+type Option struct {
+	Value string `yaml:"value" json:"value"`
+	Label string `yaml:"label" json:"label"`
+}
+
+var settingValueRe = regexp.MustCompile(`^[A-Za-z0-9_+.,:/@ -]*$`)
+
+// SettingValue returns the effective value of a setting: the user's choice
+// from values, or the default.
+func (a App) SettingValue(key string, values map[string]string) string {
+	for _, s := range a.Settings {
+		if s.Key == key {
+			if v, ok := values[key]; ok {
+				return v
+			}
+			return s.Default
+		}
+	}
+	return ""
+}
+
+// CheckSettings validates the user's values for the app's settings.
+func (a App) CheckSettings(values map[string]string) error {
+	for key, v := range values {
+		var setting *Setting
+		for i := range a.Settings {
+			if a.Settings[i].Key == key {
+				setting = &a.Settings[i]
+			}
+		}
+		if setting == nil {
+			return fmt.Errorf("%s has no setting %q", a.Name, key)
+		}
+		if len(setting.Options) > 0 {
+			ok := false
+			for _, o := range setting.Options {
+				ok = ok || o.Value == v
+			}
+			if !ok {
+				return fmt.Errorf("%q is not an option for %s", v, setting.Label)
+			}
+		} else if !settingValueRe.MatchString(v) || len(v) > 200 {
+			// The value ends up in docker-compose.yml, where $ would be read
+			// as a variable.
+			return fmt.Errorf("%s may only contain letters, digits, spaces and _+.,:/@-", setting.Label)
+		}
+	}
+	return nil
 }
 
 // Sidecar is a container that belongs to an app, such as its database. It

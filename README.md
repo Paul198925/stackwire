@@ -68,7 +68,7 @@ Open http://localhost:8900 and sign in as `admin` with `ADMIN_PASSWORD` from the
 - see at a glance what runs and what it uses: processor, memory and disk space, per app and in total, plus numbers from the apps themselves (series, movies, missing items, indexers, downloads)
 - install and remove apps, then apply the changes with one click and watch the progress
 - see which apps run, open them, restart them, read their logs
-- change domain, timezone, data folder and ports
+- change domain, timezone, data folder and ports, and settings of single apps such as the document language of Paperless-ngx
 - look up the shared login, stop everything
 
 The page only listens on this machine by default. To reach it from other devices on your network, start it with `--addr 0.0.0.0:8900`. That connection is not encrypted, so do not expose the port to the internet.
@@ -93,6 +93,14 @@ On Linux the proxy container reaches the page through the Docker bridge. A host 
 | `docker-compose.yml`, `caddy/` | Generated. Overwritten on every run. |
 | `config/<app>/` | Each app's own configuration. |
 | `data/` | `media/{movies,tv}` and `torrents/{movies,tv}` on one mount, so imports are hardlinks instead of copies. |
+
+Some apps have settings of their own, such as the document language of Paperless-ngx. Change them in the web interface (Settings on the app's card) or in `stackwire.yaml`:
+
+```yaml
+appSettings:
+  paperless:
+    ocrLanguage: deu+eng
+```
 
 If a port is taken, override it in `stackwire.yaml`:
 

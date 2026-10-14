@@ -26,6 +26,7 @@ env:
   # Look for new files in the inbox every 10 seconds. File change events do
   # not reach the container from network shares or from Docker Desktop.
   PAPERLESS_CONSUMER_POLLING_INTERVAL: "10"
+  PAPERLESS_OCR_LANGUAGE: "{{setting:ocrLanguage}}"
 volumes:
   - config/data:/usr/src/paperless/data
   - data/documents/archive:/usr/src/paperless/media
@@ -44,5 +45,24 @@ sidecars:
       POSTGRES_PASSWORD: ${PAPERLESS_DB_PASSWORD}
     volumes:
       - volume/database:/var/lib/postgresql
+settings:
+  - key: ocrLanguage
+    label: Document language
+    description: Used to read the text of scanned documents. Documents that are already in Paperless keep their text.
+    default: eng
+    # The languages the image ships with; others would need extra packages.
+    options:
+      - value: eng
+        label: English
+      - value: deu
+        label: German
+      - value: deu+eng
+        label: German and English
+      - value: fra
+        label: French
+      - value: ita
+        label: Italian
+      - value: spa
+        label: Spanish
 todo: Drop files into the documents/inbox folder of your data folder, or upload them in the browser.
 driver: paperless

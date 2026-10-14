@@ -84,7 +84,7 @@ th:first-child, td:first-child { padding-left: 0; }
 .field label { display: block; font-weight: 600; margin-bottom: 4px; }
 .field small { display: block; color: var(--muted); margin-top: 4px; }
 .field small a { color: var(--accent); }
-input[type=text], input[type=password], input[type=email], input[type=number] { font: inherit; width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); }
+select, input[type=text], input[type=password], input[type=email], input[type=number] { font: inherit; width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); }
 .ports { display: grid; grid-template-columns: max-content 120px; gap: 8px 16px; align-items: center; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .msg { color: var(--muted); }
@@ -97,6 +97,7 @@ dialog::backdrop { background: rgba(0,0,0,0.45); }
 dialog pre { max-height: 65vh; }
 dialog .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 dialog h3 { margin: 0; }
+#app-settings { width: min(520px, 94vw); }
 #login { max-width: 360px; margin: 12vh auto 0; padding: 0 16px; }
 #login h1 { font-size: 22px; margin: 0 0 4px; }
 #login p { color: var(--muted); margin: 0 0 18px; }
@@ -200,6 +201,16 @@ dialog h3 { margin: 0; }
     </section>
   </main>
 </div>
+
+<dialog id="app-settings">
+  <form id="app-settings-form" method="dialog">
+    <div class="top"><h3 id="app-settings-title"></h3></div>
+    <div id="app-settings-fields"></div>
+    <p class="msg" style="margin-top:0">Saved settings take effect when you apply the changes; the app is then restarted.</p>
+    <div class="row"><button class="primary" type="submit">Save</button><button type="button" id="app-settings-cancel">Cancel</button>
+      <span id="app-settings-msg" class="msg bad" role="alert"></span></div>
+  </form>
+</dialog>
 
 <dialog id="logs">
   <div class="top"><h3 id="logs-title"></h3><div class="row"><button id="logs-refresh" type="button">Refresh</button><button id="logs-close" type="button">Close</button></div></div>
@@ -379,6 +390,7 @@ function card(a) {
   if (a.selected) {
     if (running && a.healthy && !a.internal) actions.push(h("a", { class: "btn primary", href: appURL(a), target: "_blank", rel: "noopener" }, "Open"));
     if (a.container) actions.push(h("button", { onclick: () => openLogs(a) }, "Logs"));
+    if (a.settings && a.settings.length) actions.push(h("button", { disabled: busy, onclick: () => openAppSettings(a) }, "Settings"));
     if (running) actions.push(h("button", { disabled: busy, onclick: () => act(() => api("POST", `/api/apps/${a.id}/restart`)) }, "Restart"));
     actions.push(h("button", { class: "danger", disabled: busy, onclick: () => act(() => api("POST", `/api/apps/${a.id}/remove`)) }, a.container ? "Remove" : "Cancel"));
   } else if (a.container) {
@@ -489,6 +501,32 @@ function openLogs(a) {
   $("logs").showModal();
   loadLogs();
 }
+let settingsApp = null;
+function openAppSettings(a) {
+  settingsApp = a;
+  $("app-settings-title").textContent = a.name + " settings";
+  $("app-settings-msg").textContent = "";
+  $("app-settings-fields").replaceChildren(...a.settings.map(s => {
+    const id = "as-" + s.key;
+    const input = s.options && s.options.length
+      ? h("select", { id, "data-key": s.key }, ...s.options.map(o => h("option", { value: o.value, selected: o.value === s.value }, o.label)))
+      : h("input", { id, type: "text", "data-key": s.key, value: s.value, spellcheck: "false" });
+    return h("div", { class: "field" }, h("label", { for: id }, s.label), input, s.description && h("small", {}, s.description));
+  }));
+  $("app-settings").showModal();
+}
+$("app-settings-cancel").addEventListener("click", () => $("app-settings").close());
+$("app-settings-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const values = {};
+  for (const el of $("app-settings-fields").querySelectorAll("[data-key]")) values[el.dataset.key] = el.value;
+  try {
+    await api("PUT", `/api/apps/${settingsApp.id}/settings`, { values });
+    $("app-settings").close();
+    refresh();
+  } catch (err) { $("app-settings-msg").textContent = err.message; }
+});
+
 $("logs-refresh").addEventListener("click", loadLogs);
 $("logs-close").addEventListener("click", () => $("logs").close());
 

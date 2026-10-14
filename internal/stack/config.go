@@ -26,6 +26,9 @@ type Config struct {
 	PUID      int            `yaml:"puid"`
 	PGID      int            `yaml:"pgid"`
 	Ports     map[string]int `yaml:"ports,omitempty"` // host port overrides by app ID
+	// AppSettings holds the user's values for the settings apps declare,
+	// by app ID and setting key.
+	AppSettings map[string]map[string]string `yaml:"appSettings,omitempty"`
 
 	Dir string `yaml:"-"` // directory that contains stackwire.yaml
 }

@@ -172,6 +172,18 @@ func TestSidecars(t *testing.T) {
 	if _, ok := p.Environment["PAPERLESS_URL"]; ok || p.Environment["USERMAP_UID"] != strconv.Itoa(cfg.PUID) {
 		t.Errorf("paperless environment = %v", p.Environment)
 	}
+	if got := p.Environment["PAPERLESS_OCR_LANGUAGE"]; got != "eng" {
+		t.Errorf("OCR language without a choice = %q, want the default", got)
+	}
+	cfg.AppSettings = map[string]map[string]string{"paperless": {"ocrLanguage": "deu+eng"}}
+	if got := parse(t, cfg, apps).Services["paperless"].Environment["PAPERLESS_OCR_LANGUAGE"]; got != "deu+eng" {
+		t.Errorf("OCR language = %q, want the user's choice", got)
+	}
+	cfg.AppSettings["paperless"]["ocrLanguage"] = "klingon"
+	if _, err := Compose(cfg, apps); err == nil {
+		t.Error("a hand-edited value outside the options was accepted")
+	}
+	cfg.AppSettings = nil
 	cfg.Domain = "example.com"
 	if got := parse(t, cfg, apps).Services["paperless"].Environment["PAPERLESS_URL"]; got != "https://paperless.example.com" {
 		t.Errorf("PAPERLESS_URL = %q", got)
