@@ -22,3 +22,12 @@ arr:
   rootFolder: /data/media/movies
   category: movies
   prowlarrApp: Radarr
+  counts:
+    - label: Movies
+      path: /movie
+    - label: Missing movies
+      path: /wanted/missing?pageSize=1
+      field: totalRecords
+    - label: In download queue
+      path: /queue?pageSize=1
+      field: totalRecords

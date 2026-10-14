@@ -15,3 +15,6 @@ driver: prowlarr
 arr:
   apiVersion: v1
   apiKeySecret: PROWLARR_API_KEY
+  counts:
+    - label: Indexers
+      path: /indexer

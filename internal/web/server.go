@@ -2,7 +2,6 @@
 package web
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/rand"
 	"crypto/subtle"
@@ -51,6 +50,9 @@ type Server struct {
 	failed   []time.Time // recent failed logins
 	job      *job
 	jobSeq   int
+
+	dash    dashboardCache
+	factsMu sync.Mutex
 }
 
 func New(dir string) *Server {
@@ -69,6 +71,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/login", s.handleLogin)
 	mux.HandleFunc("POST /api/logout", s.handleLogout)
 	mux.HandleFunc("GET /api/state", s.auth(s.handleState))
+	mux.HandleFunc("GET /api/dashboard", s.auth(s.handleDashboard))
 	mux.HandleFunc("PUT /api/config", s.auth(s.handleConfig))
 	mux.HandleFunc("POST /api/password", s.auth(s.handlePassword))
 	mux.HandleFunc("POST /api/apply", s.auth(s.handleApply))
@@ -263,41 +266,6 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	jobID, _ := strconv.Atoi(r.URL.Query().Get("job"))
 	resp.Job = s.jobView(jobID, offset)
 	writeJSON(w, resp)
-}
-
-// composeStates asks docker compose for the state of each service.
-func composeStates(project string) (map[string]string, error) {
-	out, err := dockerx.ProjectOutput(project, "ps", "-a", "--format", "json")
-	if err != nil {
-		return nil, err
-	}
-	type entry struct{ Service, State string }
-	states := map[string]string{}
-	out = bytes.TrimSpace(out)
-	// Older compose versions print one JSON array, newer ones one object per line.
-	if bytes.HasPrefix(out, []byte("[")) {
-		var list []entry
-		if err := json.Unmarshal(out, &list); err != nil {
-			return nil, err
-		}
-		for _, e := range list {
-			states[e.Service] = e.State
-		}
-		return states, nil
-	}
-	sc := bufio.NewScanner(bytes.NewReader(out))
-	sc.Buffer(nil, 1<<20)
-	for sc.Scan() {
-		var e entry
-		if len(bytes.TrimSpace(sc.Bytes())) == 0 {
-			continue
-		}
-		if err := json.Unmarshal(sc.Bytes(), &e); err != nil {
-			return nil, err
-		}
-		states[e.Service] = e.State
-	}
-	return states, sc.Err()
 }
 
 // --- changes ---

@@ -36,11 +36,21 @@ type App struct {
 
 // ArrSpec configures the Servarr family (Sonarr, Radarr, Prowlarr).
 type ArrSpec struct {
-	APIVersion   string `yaml:"apiVersion"`
-	APIKeySecret string `yaml:"apiKeySecret"`
-	RootFolder   string `yaml:"rootFolder"`
-	Category     string `yaml:"category"`    // download client category
-	ProwlarrApp  string `yaml:"prowlarrApp"` // Prowlarr application implementation
+	APIVersion   string     `yaml:"apiVersion"`
+	APIKeySecret string     `yaml:"apiKeySecret"`
+	RootFolder   string     `yaml:"rootFolder"`
+	Category     string     `yaml:"category"`    // download client category
+	ProwlarrApp  string     `yaml:"prowlarrApp"` // Prowlarr application implementation
+	Counts       []ArrCount `yaml:"counts"`      // numbers for the dashboard
+}
+
+// ArrCount is a number read from a Servarr API endpoint.
+type ArrCount struct {
+	Label string `yaml:"label"`
+	Path  string `yaml:"path"`
+	// Field names the number in the response object. Empty: the response is
+	// a list and its length is the number.
+	Field string `yaml:"field"`
 }
 
 type JellyfinSpec struct {

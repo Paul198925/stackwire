@@ -290,6 +290,82 @@ func TestRunWiresTheMediaStack(t *testing.T) {
 	}
 }
 
+func TestFacts(t *testing.T) {
+	dir := t.TempDir()
+	cfg := stack.Default(dir)
+	apps, err := catalog.Resolve([]string{"sonarr", "qbittorrent", "jellyfin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secrets, _ := stack.LoadSecrets(dir)
+	secrets.EnsureAdmin()
+	secrets.Ensure("SONARR_API_KEY", "hex32")
+
+	sonarr := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Api-Key") != secrets.Get("SONARR_API_KEY") {
+			http.Error(w, "bad key", http.StatusUnauthorized)
+			return
+		}
+		switch r.URL.Path {
+		case "/api/v3/series":
+			io.WriteString(w, `[{"id":1},{"id":2},{"id":3}]`)
+		case "/api/v3/wanted/missing":
+			io.WriteString(w, `{"page":1,"totalRecords":17,"records":[]}`)
+		case "/api/v3/queue":
+			io.WriteString(w, `{"page":1,"totalRecords":2,"records":[]}`)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	qb := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v2/auth/login" {
+			http.SetCookie(w, &http.Cookie{Name: "SID", Value: "abc"})
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if c, err := r.Cookie("SID"); err != nil || c.Value != "abc" {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		switch {
+		case r.URL.Path == "/api/v2/transfer/info":
+			io.WriteString(w, `{"dl_info_speed":2048,"up_info_speed":512}`)
+		case r.URL.Query().Get("filter") == "downloading":
+			io.WriteString(w, `[{"hash":"a"}]`)
+		default:
+			io.WriteString(w, `[{"hash":"a"},{"hash":"b"}]`)
+		}
+	})
+	ctx := NewCtx(cfg, secrets, apps, io.Discard)
+	ctx.BaseURLs = map[string]string{}
+	for id, h := range map[string]http.Handler{"sonarr": sonarr, "qbittorrent": qb} {
+		srv := httptest.NewServer(h)
+		defer srv.Close()
+		ctx.BaseURLs[id] = srv.URL
+	}
+
+	want := map[string][]Fact{
+		"sonarr":      {{Label: "Series", Value: 3}, {Label: "Missing episodes", Value: 17}, {Label: "In download queue", Value: 2}},
+		"qbittorrent": {{Label: "Torrents", Value: 2}, {Label: "Downloading", Value: 1}, {Label: "Download speed", Value: 2048, Unit: "bytes/s"}, {Label: "Upload speed", Value: 512, Unit: "bytes/s"}},
+		"jellyfin":    nil,
+	}
+	for _, a := range apps {
+		got, err := Facts(ctx, a)
+		if err != nil {
+			t.Errorf("%s: %v", a.ID, err)
+		}
+		if len(got) != len(want[a.ID]) {
+			t.Errorf("%s facts = %v, want %v", a.ID, got, want[a.ID])
+			continue
+		}
+		for i := range got {
+			if got[i] != want[a.ID][i] {
+				t.Errorf("%s fact %d = %v, want %v", a.ID, i, got[i], want[a.ID][i])
+			}
+		}
+	}
+}
+
 func TestHealthyChecksBody(t *testing.T) {
 	body := "Degraded"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, body) }))

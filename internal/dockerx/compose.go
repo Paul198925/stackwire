@@ -28,18 +28,23 @@ func Project(name string, out io.Writer, args ...string) error {
 
 // ProjectOutput is like Project but returns what the command printed.
 func ProjectOutput(name string, args ...string) ([]byte, error) {
+	return Output(append([]string{"compose", "-p", name}, args...)...)
+}
+
+// Output runs `docker <args>` and returns what it printed.
+func Output(args ...string) ([]byte, error) {
 	var stdout, stderr bytes.Buffer
 	if _, err := exec.LookPath("docker"); err != nil {
 		return nil, errNoDocker
 	}
-	cmd := exec.Command("docker", append([]string{"compose", "-p", name}, args...)...)
+	cmd := exec.Command("docker", args...)
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
 			msg = err.Error()
 		}
-		return nil, fmt.Errorf("docker compose %s: %s", args[0], msg)
+		return nil, fmt.Errorf("docker %s: %s", args[0], msg)
 	}
 	return stdout.Bytes(), nil
 }

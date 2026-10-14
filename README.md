@@ -49,6 +49,7 @@ stackwire serve --dir ~/media
 
 Open http://localhost:8900 and sign in as `admin` with `ADMIN_PASSWORD` from the stack's `.env`. In a new directory `serve` creates an empty stack, so you can do everything in the browser:
 
+- see at a glance what runs and what it uses: processor, memory and disk space, per app and in total, plus numbers from the apps themselves (series, movies, missing items, indexers, downloads)
 - install and remove apps, then apply the changes with one click and watch the progress
 - see which apps run, open them, restart them, read their logs
 - change domain, timezone, data folder and ports

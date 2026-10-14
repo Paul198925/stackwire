@@ -9,12 +9,14 @@
   --bg: #f6f7f9; --surface: #ffffff; --border: #dfe3e8; --text: #1b1f24; --muted: #5d6673;
   --accent: #2f6fed; --accent-text: #ffffff; --ok: #1a7f4b; --ok-bg: #e3f4ea;
   --warn: #8a5a00; --warn-bg: #fdf0d0; --bad: #b3261e; --bad-bg: #fbe4e2; --code: #f0f2f5;
+  --warn-fill: #d99a00; --bad-fill: #d03b3b;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #111418; --surface: #1a1e24; --border: #2c323b; --text: #e7eaee; --muted: #9aa4b2;
     --accent: #6b9bff; --accent-text: #0b1020; --ok: #6fd39b; --ok-bg: #16301f;
     --warn: #f0c060; --warn-bg: #352a10; --bad: #ff8f85; --bad-bg: #3a1a18; --code: #12151a;
+    --warn-fill: #fab219; --bad-fill: #e5534b;
   }
 }
 * { box-sizing: border-box; }
@@ -54,6 +56,29 @@ button.link { border: 0; background: none; color: var(--muted); padding: 6px 4px
 .pill.warn { background: var(--warn-bg); color: var(--warn); }
 .pill.bad { background: var(--bad-bg); color: var(--bad); }
 .empty { color: var(--muted); padding: 8px 0; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+.tile .label { color: var(--muted); font-size: 13px; }
+.tile .value { font-size: 28px; font-weight: 600; line-height: 1.25; margin: 2px 0 8px; letter-spacing: -0.01em; }
+.tile .value small { font-size: 15px; font-weight: 400; color: var(--muted); }
+.tile .sub { color: var(--muted); font-size: 13px; margin-top: 8px; }
+/* The track is a lighter step of the fill, so the state reads across the whole bar. */
+.meter { --fill: var(--accent); height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--fill) 22%, transparent); overflow: hidden; }
+.meter span { display: block; height: 100%; min-width: 2px; background: var(--fill); border-radius: 4px; }
+.meter.warn { --fill: var(--warn-fill); }
+.meter.bad { --fill: var(--bad-fill); }
+.tablewrap { overflow-x: auto; padding: 4px 16px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; font-size: 13px; }
+tbody tr:last-child td { border-bottom: 0; }
+th:first-child, td:first-child { padding-left: 0; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.facts { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; margin: 0; font-size: 14px; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.facts.wide { grid-template-columns: max-content 1fr; }
+.facts.wide dd { text-align: left; font-weight: 400; word-break: break-all; }
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
 .field { margin-bottom: 14px; max-width: 520px; }
 .field label { display: block; font-weight: 600; margin-bottom: 4px; }
@@ -94,6 +119,7 @@ dialog h3 { margin: 0; }
   <header><div class="bar">
     <div class="brand">stackwire</div>
     <nav>
+      <button data-view="dashboard">Dashboard</button>
       <button data-view="apps">Apps</button>
       <button data-view="settings">Settings</button>
       <button data-view="activity">Activity</button>
@@ -104,7 +130,26 @@ dialog h3 { margin: 0; }
   <main>
     <div id="banner" aria-live="polite"></div>
 
-    <section id="view-apps">
+    <section id="view-dashboard" hidden>
+      <p id="dash-msg" class="msg">Loading…</p>
+      <div id="dash-body" hidden>
+        <div id="dash-tiles" class="tiles"></div>
+        <h2>Apps</h2>
+        <div class="panel tablewrap">
+          <table>
+            <thead><tr><th>App</th><th>Status</th><th class="num">CPU</th><th class="num">Memory</th><th class="num">Received</th><th class="num">Sent</th><th>Running for</th></tr></thead>
+            <tbody id="dash-apps"></tbody>
+          </table>
+        </div>
+        <h2>Library and downloads</h2>
+        <div id="dash-facts" class="grid"></div>
+        <h2>System</h2>
+        <div class="panel"><dl id="dash-system" class="facts wide"></dl></div>
+        <p id="dash-updated" class="msg"></p>
+      </div>
+    </section>
+
+    <section id="view-apps" hidden>
       <h2>Your apps</h2>
       <div id="mine" class="grid"></div>
       <h2>Available</h2>
@@ -164,7 +209,7 @@ dialog h3 { margin: 0; }
 <script>
 "use strict";
 const $ = id => document.getElementById(id);
-let state = null, view = "apps", jobId = 0, jobOffset = 0, jobLog = "", timer = null;
+let state = null, dash = null, dashTimer = null, view = "dashboard", jobId = 0, jobOffset = 0, jobLog = "", timer = null;
 let settingsDirty = false, dismissedError = 0, logsApp = null, renderedApps = "";
 
 function h(tag, attrs, ...children) {
@@ -192,7 +237,7 @@ async function api(method, path, body) {
 }
 
 function showLogin() {
-  clearTimeout(timer);
+  clearTimeout(timer); clearTimeout(dashTimer);
   $("app").hidden = true; $("login").hidden = false; $("l-pass").focus();
 }
 
@@ -204,7 +249,7 @@ $("login-form").addEventListener("submit", async e => {
     $("l-pass").value = "";
     $("login").hidden = true; $("app").hidden = false;
     settingsDirty = false;
-    refresh();
+    refresh(); refreshDashboard();
   } catch (err) { $("login-msg").textContent = err.message; }
 });
 
@@ -214,7 +259,83 @@ for (const b of document.querySelectorAll("nav button")) b.addEventListener("cli
 function setView(v) {
   view = v;
   for (const b of document.querySelectorAll("nav button")) b.setAttribute("aria-current", b.dataset.view === v ? "page" : "false");
-  for (const name of ["apps", "settings", "activity"]) $("view-" + name).hidden = name !== v;
+  for (const name of ["dashboard", "apps", "settings", "activity"]) $("view-" + name).hidden = name !== v;
+  if (v === "dashboard") refreshDashboard();
+}
+
+// --- dashboard ---
+
+function fmtBytes(n) {
+  if (!n) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return (i === 0 || n >= 100 ? n.toFixed(0) : n.toFixed(1)) + " " + units[i];
+}
+
+// The level is also written out next to the bar, so it never depends on color alone.
+function level(frac) { return frac >= 0.9 ? ["bad", "very high"] : frac >= 0.75 ? ["warn", "high"] : ["", ""]; }
+
+function tile(label, value, unit, sub, frac) {
+  const kids = [h("div", { class: "label" }, label), h("div", { class: "value" }, value, unit && h("small", {}, " " + unit))];
+  if (frac != null) {
+    const p = Math.max(0, Math.min(1, frac || 0)), [cls, word] = level(p);
+    kids.push(h("div", { class: "meter " + cls, role: "meter", "aria-label": label, "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": Math.round(p * 100) },
+      h("span", { style: `width:${(p * 100).toFixed(1)}%` })));
+    if (word) sub += " · " + word;
+  }
+  kids.push(h("div", { class: "sub" }, sub));
+  return h("div", { class: "tile" }, ...kids);
+}
+
+function renderDashboard() {
+  const d = dash, apps = d.apps, running = apps.filter(a => a.state === "running");
+  $("dash-msg").hidden = true; $("dash-body").hidden = false;
+  const cpu = running.reduce((s, a) => s + a.cpu, 0), mem = running.reduce((s, a) => s + a.mem, 0);
+  const cores = d.host.cpus || 1, used = d.disk.total - d.disk.free;
+  const down = apps.length - running.length;
+  $("dash-tiles").replaceChildren(
+    tile("Apps running", String(running.length), "of " + apps.length,
+      !apps.length ? "No apps installed yet" : down ? `${down} not running` : "Everything is up"),
+    tile("Processor", (cpu / cores).toFixed(cpu / cores < 10 ? 1 : 0), "%", `Used by your apps, of ${cores} cores`, cpu / cores / 100),
+    tile("Memory", fmtBytes(mem), "", d.host.memTotal ? `Used by your apps, of ${fmtBytes(d.host.memTotal)}` : "Used by your apps", d.host.memTotal ? mem / d.host.memTotal : null),
+    tile("Free disk space", fmtBytes(d.disk.free), "", d.disk.total ? `${fmtBytes(used)} of ${fmtBytes(d.disk.total)} used` : "Not available", d.disk.total ? used / d.disk.total : null));
+
+  $("dash-apps").replaceChildren(...(apps.length ? apps.map(a => {
+    const up = a.state === "running";
+    return h("tr", {}, h("td", {}, a.name),
+      h("td", {}, h("span", { class: "pill " + (up ? "ok" : a.state ? "bad" : "warn") }, up ? "Running" : a.state ? "Stopped" : "Not installed yet")),
+      h("td", { class: "num" }, up ? a.cpu.toFixed(1) + " %" : "–"),
+      h("td", { class: "num" }, up ? fmtBytes(a.mem) : "–"),
+      h("td", { class: "num" }, up ? fmtBytes(a.netRx) : "–"),
+      h("td", { class: "num" }, up ? fmtBytes(a.netTx) : "–"),
+      h("td", {}, up ? a.uptime.replace(/^Up /, "").replace(/ \(.*\)$/, "") : "–"));
+  }) : [h("tr", {}, h("td", { colspan: 7, class: "msg" }, "No apps yet. Install some on the Apps page."))]));
+
+  const withFacts = apps.filter(a => (a.facts && a.facts.length) || a.factsError);
+  $("dash-facts").replaceChildren(...(withFacts.length ? withFacts.map(a => h("div", { class: "card" },
+    h("h3", {}, a.name),
+    a.facts && a.facts.length
+      ? h("dl", { class: "facts" }, ...a.facts.flatMap(f => [h("dt", {}, f.label),
+          h("dd", {}, f.unit === "bytes/s" ? fmtBytes(f.value) + "/s" : f.value.toLocaleString())]))
+      : h("p", {}, "Not available right now."))) : [h("p", { class: "empty" }, "Numbers from your apps appear here once they run.")]));
+
+  const rows = [
+    ["Access", d.mode === "domain" ? "Domain " + d.domain + " (HTTPS)" : "By port on your network"],
+    ["Stack folder", d.dir], ["Data folder", d.disk.path],
+    ["Docker", d.host.docker || "–"], ["Operating system", [d.host.os, d.host.kernel].filter(Boolean).join(", ") || "–"],
+    ["Processor cores", d.host.cpus ? String(d.host.cpus) : "–"], ["Memory", d.host.memTotal ? fmtBytes(d.host.memTotal) : "–"],
+  ];
+  $("dash-system").replaceChildren(...rows.flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v)]));
+  $("dash-updated").textContent = (d.dockerError ? "Docker is not reachable: " + d.dockerError + " · " : "") + "Updated " + new Date(d.at).toLocaleTimeString();
+}
+
+async function refreshDashboard() {
+  clearTimeout(dashTimer);
+  if (view !== "dashboard" || $("app").hidden) return;
+  try { dash = await api("GET", "/api/dashboard"); renderDashboard(); }
+  catch (err) { if (!dash) $("dash-msg").textContent = err.message; }
+  dashTimer = setTimeout(refreshDashboard, 10000);
 }
 
 async function refresh() {
@@ -224,8 +345,10 @@ async function refresh() {
     if (s.job.id !== jobId) { jobId = s.job.id; jobLog = ""; }
     jobLog += s.job.log; jobOffset = s.job.offset;
     state = s;
+    const wasHidden = $("app").hidden;
     $("login").hidden = true; $("app").hidden = false;
     render();
+    if (wasHidden) refreshDashboard();
   } catch (err) {
     if (!$("login").hidden) return;
     renderBanner(err.message);
@@ -369,7 +492,7 @@ function openLogs(a) {
 $("logs-refresh").addEventListener("click", loadLogs);
 $("logs-close").addEventListener("click", () => $("logs").close());
 
-setView("apps");
+setView("dashboard");
 refresh();
 </script>
 </body>

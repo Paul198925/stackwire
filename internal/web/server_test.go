@@ -68,7 +68,7 @@ func login(t *testing.T, c *client, dir string) {
 func TestAPIRequiresLogin(t *testing.T) {
 	c, _ := setup(t)
 	for _, r := range [][2]string{
-		{"GET", "/api/state"}, {"PUT", "/api/config"}, {"POST", "/api/password"}, {"POST", "/api/apply"},
+		{"GET", "/api/state"}, {"GET", "/api/dashboard"}, {"PUT", "/api/config"}, {"POST", "/api/password"}, {"POST", "/api/apply"},
 		{"POST", "/api/stop"}, {"POST", "/api/apps/sonarr/install"}, {"POST", "/api/apps/sonarr/remove"},
 		{"POST", "/api/apps/sonarr/restart"}, {"GET", "/api/apps/sonarr/logs"},
 	} {
@@ -138,6 +138,17 @@ func TestSelectAppsAndSettings(t *testing.T) {
 	}
 	if cfg2, _ := stack.Load(dir); cfg2.Domain != "media.example.com" {
 		t.Error("a rejected change was saved")
+	}
+}
+
+func TestParseSize(t *testing.T) {
+	for in, want := range map[string]uint64{
+		"0B": 0, "512B": 512, "1.5kB": 1500, "2MB": 2000000, "123.4MiB": 129394278,
+		" 1.5GiB ": 1610612736, "7.6GiB": 8160437862, "garbage": 0, "": 0, "12XB": 0,
+	} {
+		if got := parseSize(in); got != want {
+			t.Errorf("parseSize(%q) = %d, want %d", in, got, want)
+		}
 	}
 }
 

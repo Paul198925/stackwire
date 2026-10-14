@@ -22,3 +22,12 @@ arr:
   rootFolder: /data/media/tv
   category: tv
   prowlarrApp: Sonarr
+  counts:
+    - label: Series
+      path: /series
+    - label: Missing episodes
+      path: /wanted/missing?pageSize=1
+      field: totalRecords
+    - label: In download queue
+      path: /queue?pageSize=1
+      field: totalRecords
