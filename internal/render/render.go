@@ -3,6 +3,7 @@
 package render
 
 import (
+	"bytes"
 	"fmt"
 	"io/fs"
 	"os"
@@ -59,7 +60,7 @@ func Write(cfg *stack.Config, apps []catalog.App) error {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(dir, "Caddyfile"), []byte(Caddyfile(cfg, apps)), 0o644); err != nil {
+		if err := os.WriteFile(CaddyfilePath(cfg), []byte(Caddyfile(cfg, apps)), 0o644); err != nil {
 			return err
 		}
 	}
@@ -154,6 +155,32 @@ func Caddyfile(cfg *stack.Config, apps []catalog.App) string {
 		fmt.Fprintf(&b, "\n%s.%s {\n\treverse_proxy %s:%d\n}\n", a.Subdomain, cfg.Domain, a.ID, a.Port)
 	}
 	return b.String()
+}
+
+// UpToDate reports whether the generated files on disk match the
+// configuration, i.e. whether there are settings that were not applied yet.
+func UpToDate(cfg *stack.Config, apps []catalog.App) bool {
+	if len(apps) == 0 {
+		return true
+	}
+	want, err := Compose(cfg, apps)
+	if err != nil {
+		return false
+	}
+	have, err := os.ReadFile(filepath.Join(cfg.Dir, ComposeFile))
+	if err != nil || !bytes.Equal(have, want) {
+		return false
+	}
+	if cfg.Domain == "" {
+		return true
+	}
+	have, err = os.ReadFile(CaddyfilePath(cfg))
+	return err == nil && string(have) == Caddyfile(cfg, apps)
+}
+
+// CaddyfilePath is where the proxy configuration is written in domain mode.
+func CaddyfilePath(cfg *stack.Config) string {
+	return filepath.Join(cfg.Dir, "caddy", "Caddyfile")
 }
 
 // AppServices lists the compose services of the apps, without the proxy.

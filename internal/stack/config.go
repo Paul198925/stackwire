@@ -77,14 +77,12 @@ var (
 	domainRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$`)
 	nameRe   = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
 	emailRe  = regexp.MustCompile(`^[^\s@{}]+@[^\s@{}]+$`)
+	tzRe     = regexp.MustCompile(`^[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+)*$`)
 )
 
 func (c *Config) Validate() error {
 	if !nameRe.MatchString(c.Name) {
 		return fmt.Errorf("name %q must be lowercase letters, digits, - or _", c.Name)
-	}
-	if len(c.Apps) == 0 {
-		return errors.New("no apps selected")
 	}
 	if c.Domain != "" && !domainRe.MatchString(c.Domain) {
 		return fmt.Errorf("domain %q is not a valid hostname", c.Domain)
@@ -94,6 +92,14 @@ func (c *Config) Validate() error {
 	}
 	if c.DataDir == "" || c.ConfigDir == "" {
 		return errors.New("dataDir and configDir must be set")
+	}
+	if !tzRe.MatchString(c.Timezone) {
+		return fmt.Errorf("timezone %q is not valid, expected a name like Europe/Berlin", c.Timezone)
+	}
+	for id, p := range c.Ports {
+		if p < 1 || p > 65535 {
+			return fmt.Errorf("port %d for %s is out of range", p, id)
+		}
 	}
 	return nil
 }

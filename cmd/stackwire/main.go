@@ -6,15 +6,17 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"stackwire/internal/catalog"
-	"stackwire/internal/dockerx"
-	"stackwire/internal/render"
+	"stackwire/internal/ops"
 	"stackwire/internal/stack"
+	"stackwire/internal/web"
 	"stackwire/internal/wire"
 )
 
@@ -24,6 +26,7 @@ Usage:
   stackwire <command> [flags]
 
 Commands:
+  serve     Run the web interface to manage the stack in the browser
   apps      List the apps in the catalog
   init      Create stackwire.yaml in a directory
   render    Write docker-compose.yml and config files without starting anything
@@ -43,7 +46,7 @@ func main() {
 	}
 	cmds := map[string]func([]string) error{
 		"apps": cmdApps, "init": cmdInit, "render": cmdRender, "up": cmdUp,
-		"wire": cmdWire, "status": cmdStatus, "down": cmdDown,
+		"wire": cmdWire, "status": cmdStatus, "down": cmdDown, "serve": cmdServe,
 	}
 	cmd, ok := cmds[os.Args[1]]
 	if !ok {
@@ -67,58 +70,6 @@ func newFlags(name string) (*flag.FlagSet, *string) {
 	fs := flag.NewFlagSet("stackwire "+name, flag.ContinueOnError)
 	dir := fs.String("dir", ".", "stack directory")
 	return fs, dir
-}
-
-type loaded struct {
-	cfg     *stack.Config
-	apps    []catalog.App
-	secrets *stack.Secrets
-}
-
-// load reads the stack and makes sure every secret the apps need exists.
-func load(dir string) (*loaded, error) {
-	abs, err := filepath.Abs(dir)
-	if err != nil {
-		return nil, err
-	}
-	cfg, err := stack.Load(abs)
-	if err != nil {
-		return nil, err
-	}
-	apps, err := catalog.Resolve(cfg.Apps)
-	if err != nil {
-		return nil, err
-	}
-	secrets, err := stack.LoadSecrets(abs)
-	if err != nil {
-		return nil, err
-	}
-	if err := secrets.EnsureAdmin(); err != nil {
-		return nil, err
-	}
-	for _, a := range apps {
-		for name, kind := range a.Secrets {
-			if err := secrets.Ensure(name, kind); err != nil {
-				return nil, err
-			}
-		}
-	}
-	if err := secrets.Save(); err != nil {
-		return nil, err
-	}
-	return &loaded{cfg, apps, secrets}, nil
-}
-
-// renderAll writes everything that must exist before the containers start.
-func renderAll(l *loaded) (*wire.Ctx, error) {
-	if err := render.Write(l.cfg, l.apps); err != nil {
-		return nil, err
-	}
-	ctx := wire.NewCtx(l.cfg, l.secrets, l.apps, os.Stdout)
-	if err := wire.Prepare(ctx); err != nil {
-		return nil, err
-	}
-	return ctx, render.FixOwnership(l.cfg, l.apps)
 }
 
 func cmdApps(args []string) error {
@@ -185,14 +136,14 @@ func cmdRender(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	l, err := load(*dir)
+	s, err := ops.Load(*dir)
 	if err != nil {
 		return err
 	}
-	if _, err := renderAll(l); err != nil {
+	if _, err := s.Render(os.Stdout); err != nil {
 		return err
 	}
-	fmt.Printf("Wrote %s\n", filepath.Join(l.cfg.Dir, render.ComposeFile))
+	fmt.Printf("Wrote the stack files to %s\n", s.Cfg.Dir)
 	return nil
 }
 
@@ -202,36 +153,11 @@ func cmdUp(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	l, err := load(*dir)
+	s, err := ops.Load(*dir)
 	if err != nil {
 		return err
 	}
-	ctx, err := renderAll(l)
-	if err != nil {
-		return err
-	}
-	// The proxy starts last: a fresh *arr app lets the first visitor create
-	// the login, so nothing is reachable from outside before that is set.
-	up := append([]string{"up", "-d", "--remove-orphans"}, render.AppServices(l.apps)...)
-	if err := dockerx.Compose(l.cfg.Dir, up...); err != nil {
-		return err
-	}
-	fmt.Println("\nWaiting for the apps:")
-	if err := wire.Wait(ctx, *timeout); err != nil {
-		return err
-	}
-	fmt.Println("\nConfiguring:")
-	if err := wire.Run(ctx); err != nil {
-		return err
-	}
-	if l.cfg.Domain != "" {
-		if err := dockerx.Compose(l.cfg.Dir, "up", "-d"); err != nil {
-			return err
-		}
-	}
-	fmt.Println()
-	printSummary(l)
-	return nil
+	return ops.Up(s, os.Stdout, *timeout)
 }
 
 func cmdWire(args []string) error {
@@ -240,15 +166,11 @@ func cmdWire(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	l, err := load(*dir)
+	s, err := ops.Load(*dir)
 	if err != nil {
 		return err
 	}
-	ctx := wire.NewCtx(l.cfg, l.secrets, l.apps, os.Stdout)
-	if err := wire.Wait(ctx, *timeout); err != nil {
-		return err
-	}
-	return wire.Run(ctx)
+	return ops.Wire(s, os.Stdout, *timeout)
 }
 
 func cmdStatus(args []string) error {
@@ -256,17 +178,17 @@ func cmdStatus(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	l, err := load(*dir)
+	s, err := ops.Load(*dir)
 	if err != nil {
 		return err
 	}
-	ctx := wire.NewCtx(l.cfg, l.secrets, l.apps, os.Stdout)
-	for _, a := range l.apps {
+	ctx := wire.NewCtx(s.Cfg, s.Secrets, s.Apps, os.Stdout)
+	for _, a := range s.Apps {
 		state := "down"
 		if wire.Healthy(ctx, a) {
 			state = "up"
 		}
-		fmt.Printf("%-12s %-5s %s\n", a.ID, state, l.cfg.PublicURL(a.ID, a.Subdomain, a.Port))
+		fmt.Printf("%-12s %-5s %s\n", a.ID, state, s.Cfg.PublicURL(a.ID, a.Subdomain, a.Port))
 	}
 	return nil
 }
@@ -276,26 +198,55 @@ func cmdDown(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	l, err := load(*dir)
+	s, err := ops.Load(*dir)
 	if err != nil {
 		return err
 	}
-	return dockerx.Compose(l.cfg.Dir, "down")
+	return ops.Down(s, os.Stdout)
 }
 
-func printSummary(l *loaded) {
-	fmt.Println("Your stack is running:")
-	for _, a := range l.apps {
-		fmt.Printf("  %-12s %s\n", a.Name, l.cfg.PublicURL(a.ID, a.Subdomain, a.Port))
+func cmdServe(args []string) error {
+	fs, dir := newFlags("serve")
+	addr := fs.String("addr", "127.0.0.1:8900", "address to listen on; use 0.0.0.0:8900 to reach it from other devices")
+	if err := fs.Parse(args); err != nil {
+		return err
 	}
-	fmt.Printf("\nLogin for every app: user %q, password in %s (%s).\n",
-		l.secrets.Get(stack.AdminUser), filepath.Join(l.cfg.Dir, stack.SecretsFile), stack.AdminPassword)
-	if l.cfg.Domain != "" {
-		fmt.Printf("DNS: point *.%s (or each app's subdomain) to this server; ports 80 and 443 must be open.\n", l.cfg.Domain)
+	abs, err := filepath.Abs(*dir)
+	if err != nil {
+		return err
 	}
-	for _, a := range l.apps {
-		if a.Driver == "prowlarr" {
-			fmt.Printf("Left to do: add your indexers in Prowlarr. They sync to the other apps on their own.\n")
+	// A new directory starts empty; the apps are chosen in the browser.
+	if _, err := os.Stat(filepath.Join(abs, stack.ConfigFile)); errors.Is(err, os.ErrNotExist) {
+		if err := os.MkdirAll(abs, 0o755); err != nil {
+			return err
 		}
+		cfg := stack.Default(abs)
+		cfg.Apps = nil
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		fmt.Printf("Created a new stack in %s\n", abs)
 	}
+	s, err := ops.Load(abs)
+	if err != nil {
+		return err
+	}
+	ln, err := net.Listen("tcp", *addr)
+	if err != nil {
+		return err
+	}
+	host, port, _ := net.SplitHostPort(ln.Addr().String())
+	ip := net.ParseIP(host)
+	local := ip != nil && ip.IsLoopback()
+	if ip == nil || ip.IsUnspecified() || local {
+		host = "localhost"
+	}
+	fmt.Printf("stackwire is running at http://%s\n", net.JoinHostPort(host, port))
+	fmt.Printf("Sign in as %q with the password in %s (%s).\n",
+		s.Secrets.Get(stack.AdminUser), filepath.Join(abs, stack.SecretsFile), stack.AdminPassword)
+	if !local {
+		fmt.Println("Note: other devices can reach this page and the connection is not encrypted. Use it on a network you trust.")
+	}
+	srv := &http.Server{Handler: web.New(abs).Handler(), ReadHeaderTimeout: 10 * time.Second}
+	return srv.Serve(ln)
 }

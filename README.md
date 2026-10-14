@@ -41,6 +41,21 @@ stackwire up --dir /opt/media
 
 Other commands: `apps`, `render`, `wire`, `status`, `down`.
 
+## Web interface
+
+```bash
+stackwire serve --dir ~/media
+```
+
+Open http://localhost:8900 and sign in as `admin` with `ADMIN_PASSWORD` from the stack's `.env`. In a new directory `serve` creates an empty stack, so you can do everything in the browser:
+
+- install and remove apps, then apply the changes with one click and watch the progress
+- see which apps run, open them, restart them, read their logs
+- change domain, timezone, data folder and ports
+- look up the shared login, stop everything
+
+The page only listens on this machine by default. To reach it from other devices on your network, start it with `--addr 0.0.0.0:8900`. The connection is not encrypted, so do not expose that port to the internet; on a remote server use an SSH tunnel (`ssh -L 8900:localhost:8900 you@server`).
+
 ## Files in the stack directory
 
 | File | Purpose |

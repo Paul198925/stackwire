@@ -20,6 +20,10 @@ import (
 
 // qbittorrent seeds the config file before the first start. Without it
 // qBittorrent invents a temporary password that is only printed to its log.
+//
+// Host header validation is turned off: it rejects every request whose Host
+// header carries another port than the one qBittorrent listens on, which is
+// the case as soon as the published port differs from the container port.
 type qbittorrent struct{}
 
 func (qbittorrent) Prepare(c *Ctx, a catalog.App) error {
@@ -48,6 +52,7 @@ Accepted=true
 
 [Preferences]
 WebUI\Address=*
+WebUI\HostHeaderValidation=false
 WebUI\Port=%d
 WebUI\ServerDomains=*
 WebUI\Username=%s

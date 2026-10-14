@@ -337,7 +337,8 @@ func TestQBittorrentPrepareKeepsExistingConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(b), `WebUI\Password_PBKDF2="@ByteArray(`) || !strings.Contains(string(b), `WebUI\Username=admin`) {
+	if !strings.Contains(string(b), `WebUI\Password_PBKDF2="@ByteArray(`) || !strings.Contains(string(b), `WebUI\Username=admin`) ||
+		!strings.Contains(string(b), `WebUI\HostHeaderValidation=false`) {
 		t.Errorf("seeded config incomplete:\n%s", b)
 	}
 	if strings.Contains(string(b), secrets.Get(stack.AdminPassword)) {
