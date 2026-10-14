@@ -127,7 +127,9 @@ func (s *Server) measure() (*dashboardResponse, error) {
 
 	containers := map[string]containerInfo{}
 	if resp.DockerError == "" {
-		if containers, err = composeContainers(st.Cfg.Name); err != nil {
+		if err := s.CheckProject(st.Cfg); err != nil {
+			resp.DockerError = err.Error()
+		} else if containers, err = composeContainers(st.Cfg.Name); err != nil {
 			resp.DockerError = err.Error()
 		}
 	}

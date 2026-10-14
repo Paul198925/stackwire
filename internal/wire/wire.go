@@ -53,6 +53,9 @@ var drivers = []struct {
 	{"seerr", seerr{}},
 	{"immich", immich{}},
 	{"paperless", paperless{}},
+	{"navidrome", navidrome{}},
+	{"audiobookshelf", audiobookshelf{}},
+	{"syncthing", syncthing{}},
 }
 
 func NewCtx(cfg *stack.Config, secrets *stack.Secrets, apps []catalog.App, out io.Writer) *Ctx {

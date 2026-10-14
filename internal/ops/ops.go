@@ -8,6 +8,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
 
 	"stackwire/internal/catalog"
@@ -70,9 +72,38 @@ func (s *Stack) Render(out io.Writer) (*wire.Ctx, error) {
 	return ctx, render.FixOwnership(s.Cfg, s.Apps)
 }
 
+// CheckProject fails if containers of the stack's compose project were
+// started from another folder. Two stacks with the same name would otherwise
+// treat each other's containers as their own, and applying one would remove
+// the other's apps.
+func CheckProject(cfg *stack.Config) error {
+	dirs, err := dockerx.ProjectDirs(cfg.Name)
+	if err != nil {
+		return err
+	}
+	for _, d := range dirs {
+		if !samePath(d, cfg.Dir) {
+			return fmt.Errorf("the name %q is already used by the stack in %s; give this stack another name in %s",
+				cfg.Name, d, filepath.Join(cfg.Dir, stack.ConfigFile))
+		}
+	}
+	return nil
+}
+
+func samePath(a, b string) bool {
+	a, b = filepath.Clean(a), filepath.Clean(b)
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
+}
+
 // Up brings the running stack in line with the configuration: it starts the
 // selected apps, removes the ones no longer selected and configures them.
 func Up(s *Stack, out io.Writer, timeout time.Duration) error {
+	if err := CheckProject(s.Cfg); err != nil {
+		return err
+	}
 	if !render.HasServices(s.Cfg, s.Apps) {
 		fmt.Fprintln(out, "No apps selected, removing the containers.")
 		return dockerx.Project(s.Cfg.Name, out, "down", "--remove-orphans")
@@ -123,6 +154,9 @@ func StartProxy(s *Stack, out io.Writer) (bool, error) {
 	if s.Cfg.Domain == "" {
 		return false, nil
 	}
+	if err := CheckProject(s.Cfg); err != nil {
+		return false, err
+	}
 	// Existing files are left alone: they describe what is running, and the
 	// web interface compares them with the settings to show pending changes.
 	if _, err := os.Stat(filepath.Join(s.Cfg.Dir, render.ComposeFile)); err != nil {
@@ -147,6 +181,9 @@ func Wire(s *Stack, out io.Writer, timeout time.Duration) error {
 
 // Down stops and removes the containers. Data and configuration are kept.
 func Down(s *Stack, out io.Writer) error {
+	if err := CheckProject(s.Cfg); err != nil {
+		return err
+	}
 	return dockerx.Project(s.Cfg.Name, out, "down", "--remove-orphans")
 }
 

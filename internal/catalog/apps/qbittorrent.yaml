@@ -1,7 +1,7 @@
 id: qbittorrent
 name: qBittorrent
 category: media
-description: Download client
+description: Torrent download client
 image: lscr.io/linuxserver/qbittorrent:latest
 port: 8080
 health: /

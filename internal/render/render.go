@@ -216,6 +216,7 @@ func addEnv(env map[string]string, cfg *stack.Config, a catalog.App, vars map[st
 //	config/sub:/target  a folder inside it
 //	data:/target        the data folder
 //	data/sub:/target    a folder inside it
+//	...:/target:ro      read-only
 //	volume/name:/target a Docker volume named <app>-<name>, for databases:
 //	                    they need a filesystem with Unix permissions, which
 //	                    a bind mount on Windows or macOS does not provide
@@ -228,6 +229,7 @@ func volumes(cfg *stack.Config, appID string, specs []string, named map[string]s
 		if !ok || !strings.HasPrefix(target, "/") {
 			return nil, fmt.Errorf("volume %q must be source:/path", spec)
 		}
+		target, readOnly := strings.CutSuffix(target, ":ro")
 		kind, sub, _ := strings.Cut(src, "/")
 		if strings.Contains(sub, "..") {
 			return nil, fmt.Errorf("volume %q leaves its folder", spec)
@@ -247,7 +249,7 @@ func volumes(cfg *stack.Config, appID string, specs []string, named map[string]s
 		default:
 			return nil, fmt.Errorf("unknown volume source %q", kind)
 		}
-		v.Target = target
+		v.Target, v.ReadOnly = target, readOnly
 		out = append(out, v)
 	}
 	return out, nil

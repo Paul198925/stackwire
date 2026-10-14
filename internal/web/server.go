@@ -40,8 +40,11 @@ const (
 type Server struct {
 	dir string
 
-	// Containers reports the state of each compose service by name. Replaced in tests.
-	Containers func(project string) (map[string]string, error)
+	// Containers reports the state of each compose service by name, and
+	// CheckProject whether the project's containers belong to this stack.
+	// Both are replaced in tests.
+	Containers   func(project string) (map[string]string, error)
+	CheckProject func(cfg *stack.Config) error
 	// ApplyTimeout is how long an apply waits for the apps to become ready.
 	ApplyTimeout time.Duration
 
@@ -56,7 +59,7 @@ type Server struct {
 }
 
 func New(dir string) *Server {
-	return &Server{dir: dir, Containers: composeStates, ApplyTimeout: 8 * time.Minute, sessions: map[string]time.Time{}}
+	return &Server{dir: dir, Containers: composeStates, CheckProject: ops.CheckProject, ApplyTimeout: 8 * time.Minute, sessions: map[string]time.Time{}}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -234,8 +237,10 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	resp.AdminUser = st.Secrets.Get(stack.AdminUser)
 	resp.UIURL = render.UIURL(st.Cfg)
 
-	containers, err := s.Containers(st.Cfg.Name)
-	if err != nil {
+	var containers map[string]string
+	if err := s.CheckProject(st.Cfg); err != nil {
+		resp.DockerError = err.Error()
+	} else if containers, err = s.Containers(st.Cfg.Name); err != nil {
 		resp.DockerError = err.Error()
 	}
 	selected := map[string]bool{}

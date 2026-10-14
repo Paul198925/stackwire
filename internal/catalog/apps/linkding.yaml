@@ -1,0 +1,15 @@
+id: linkding
+name: Linkding
+category: tools
+description: Bookmark manager with a browser extension
+image: sissbruecker/linkding:latest
+port: 9090
+health: /health
+env:
+  # Created on start if it does not exist yet.
+  LD_SUPERUSER_NAME: ${ADMIN_USER}
+  LD_SUPERUSER_PASSWORD: ${ADMIN_PASSWORD}
+  # Needed behind the proxy for its CSRF check; left out without a domain.
+  LD_CSRF_TRUSTED_ORIGINS: "{{publicURL}}"
+volumes:
+  - config:/etc/linkding/data

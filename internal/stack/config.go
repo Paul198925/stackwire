@@ -41,7 +41,7 @@ func Default(dir string) *Config {
 		uid, gid = 1000, 1000
 	}
 	return &Config{
-		Name:      "stackwire",
+		Name:      projectName(dir),
 		Apps:      []string{"jellyfin", "sonarr", "radarr", "prowlarr", "qbittorrent"},
 		DataDir:   "./data",
 		ConfigDir: "./config",
@@ -130,6 +130,27 @@ func (c *Config) Abs(p string) string {
 		return p
 	}
 	return filepath.Join(c.Dir, p)
+}
+
+// projectName derives the compose project name from the stack folder, as
+// compose itself does. Every stack on a machine needs its own: containers
+// are matched to a stack by this name.
+func projectName(dir string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(filepath.Base(dir)) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '-' || r == '_':
+			if b.Len() > 0 {
+				b.WriteRune(r)
+			}
+		}
+	}
+	if b.Len() == 0 {
+		return "stackwire"
+	}
+	return b.String()
 }
 
 func detectTimezone() string {

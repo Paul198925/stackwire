@@ -1,0 +1,19 @@
+id: syncthing
+name: Syncthing
+category: files
+description: Keeps folders in sync between your devices
+image: lscr.io/linuxserver/syncthing:latest
+port: 8384
+health: /rest/noauth/health
+# Devices connect to these directly.
+extraPorts:
+  - "22000:22000/tcp"
+  - "22000:22000/udp"
+  - "21027:21027/udp"
+volumes:
+  - config:/config
+  - data/sync:/sync
+dataDirs:
+  - sync
+todo: Install Syncthing on your other devices and add this one by its device ID (Actions > Show ID).
+driver: syncthing

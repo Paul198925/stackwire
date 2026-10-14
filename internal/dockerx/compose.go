@@ -49,6 +49,25 @@ func Output(args ...string) ([]byte, error) {
 	return stdout.Bytes(), nil
 }
 
+// ProjectDirs returns the folders that the containers of a compose project
+// were started from.
+func ProjectDirs(name string) ([]string, error) {
+	out, err := Output("ps", "-a", "--filter", "label=com.docker.compose.project="+name,
+		"--format", `{{.Label "com.docker.compose.project.working_dir"}}`)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var dirs []string
+	for _, line := range strings.Split(string(out), "\n") {
+		if d := strings.TrimSpace(line); d != "" && !seen[d] {
+			seen[d] = true
+			dirs = append(dirs, d)
+		}
+	}
+	return dirs, nil
+}
+
 var errNoDocker = errors.New("docker not found in PATH; install Docker Engine or Docker Desktop first")
 
 func run(out io.Writer, args []string, verb string) error {

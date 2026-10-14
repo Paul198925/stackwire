@@ -47,6 +47,7 @@ func setup(t *testing.T) (*client, string) {
 	}
 	srv := New(dir)
 	srv.Containers = func(string) (map[string]string, error) { return map[string]string{}, nil }
+	srv.CheckProject = func(*stack.Config) error { return nil }
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 	jar, _ := cookiejar.New(nil)

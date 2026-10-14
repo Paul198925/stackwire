@@ -18,10 +18,17 @@ Status: early. The first stack is media.
 | Bazarr | Subtitles | Login, connections to Sonarr and Radarr |
 | Seerr | Request page for family and friends | Sign-in through Jellyfin, libraries, Sonarr and Radarr as targets for requests |
 | FlareSolverr | Helper for indexers behind Cloudflare | Registered in Prowlarr under the tag `flaresolverr`; not reachable from outside |
+| Navidrome | Music streaming, also to Subsonic apps on your phone | Account `admin` with the stack's password, reads the music folder |
+| Audiobookshelf | Audiobooks and podcasts with phone apps | Root account, libraries for audiobooks and podcasts |
+| Syncthing | Folder sync between your devices | Login, new shared folders land in `sync` in the data folder |
+| Linkding | Bookmarks | Admin account |
+| Stirling-PDF | PDF tools | Login with the admin account |
 | Immich | Photo and video backup with phone apps | Admin account (sign-in by email, shown after setup), database, cache and machine learning |
 | Paperless-ngx | Document archive with text recognition | Admin account, database and queue; files dropped into `documents/inbox` in the data folder are read in |
 
 Apps that need another one bring it along: installing Seerr also installs Jellyfin.
+
+Each stack gets its own name, taken from its folder (`name` in `stackwire.yaml`). Containers belong to a stack by that name, so two stacks on one machine need different names; stackwire refuses to touch containers that another folder started.
 
 Apps that need their own database or cache get them as extra containers, which only the app can reach. Databases live in Docker volumes (`docker volume ls`), everything else in the stack folder.
 

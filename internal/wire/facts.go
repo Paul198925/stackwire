@@ -32,6 +32,12 @@ func Facts(c *Ctx, a catalog.App) ([]Fact, error) {
 		return immichFacts(c, a)
 	case "paperless":
 		return paperlessFacts(c, a)
+	case "navidrome":
+		return navidromeFacts(c, a)
+	case "audiobookshelf":
+		return absFacts(c, a)
+	case "syncthing":
+		return syncthingFacts(c, a)
 	}
 	return nil, nil
 }

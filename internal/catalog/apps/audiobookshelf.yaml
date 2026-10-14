@@ -1,0 +1,17 @@
+id: audiobookshelf
+name: Audiobookshelf
+category: media
+description: Audiobooks and podcasts, with apps for your phone
+image: ghcr.io/advplyr/audiobookshelf:latest
+port: 80
+hostPort: 13378
+health: /healthcheck
+volumes:
+  - config/config:/config
+  - config/metadata:/metadata
+  - data/media/audiobooks:/audiobooks
+  - data/media/podcasts:/podcasts
+dataDirs:
+  - media/audiobooks
+  - media/podcasts
+driver: audiobookshelf

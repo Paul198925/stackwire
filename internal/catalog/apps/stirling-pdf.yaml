@@ -1,0 +1,15 @@
+id: stirling-pdf
+name: Stirling-PDF
+category: tools
+description: Merge, split, convert, sign and edit PDF files
+image: stirlingtools/stirling-pdf:latest
+port: 8080
+hostPort: 8090
+health: /login
+env:
+  SECURITY_ENABLELOGIN: "true"
+  # Used for the first account only.
+  SECURITY_INITIALLOGIN_USERNAME: ${ADMIN_USER}
+  SECURITY_INITIALLOGIN_PASSWORD: ${ADMIN_PASSWORD}
+volumes:
+  - config/configs:/configs

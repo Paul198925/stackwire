@@ -1,0 +1,21 @@
+id: navidrome
+name: Navidrome
+category: media
+description: Music streaming in the browser and in Subsonic apps on your phone
+image: deluan/navidrome:latest
+port: 4533
+health: /ping
+# The image has no PUID/PGID handling.
+runAsUser: true
+env:
+  ND_MUSICFOLDER: /music
+  ND_DATAFOLDER: /data
+  # Creates the account "admin" with this password on the first start.
+  ND_DEVAUTOCREATEADMINPASSWORD: ${ADMIN_PASSWORD}
+volumes:
+  - config:/data
+  - data/media/music:/music:ro
+dataDirs:
+  - media/music
+todo: 'Sign in as "admin". Music goes into media/music in the data folder; Lidarr puts it there too.'
+driver: navidrome

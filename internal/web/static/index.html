@@ -56,6 +56,8 @@ button.link { border: 0; background: none; color: var(--muted); padding: 6px 4px
 .pill.warn { background: var(--warn-bg); color: var(--warn); }
 .pill.bad { background: var(--bad-bg); color: var(--bad); }
 .empty { color: var(--muted); padding: 8px 0; }
+h3.group { font-size: 15px; margin: 18px 0 8px; }
+h3.group:first-child { margin-top: 0; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
 .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
 .tile .label { color: var(--muted); font-size: 13px; }
@@ -154,7 +156,7 @@ dialog h3 { margin: 0; }
       <h2>Your apps</h2>
       <div id="mine" class="grid"></div>
       <h2>Available</h2>
-      <div id="available" class="grid"></div>
+      <div id="available"></div>
     </section>
 
     <section id="view-settings" hidden>
@@ -372,6 +374,8 @@ async function act(fn) {
   refresh();
 }
 
+const categoryNames = { media: "Media", photos: "Photos", documents: "Documents", files: "Files", tools: "Tools" };
+
 function appURL(a) { return a.url || `http://${location.hostname}:${a.port}`; }
 
 function status(a) {
@@ -409,7 +413,7 @@ function renderBanner(fetchError) {
   b.replaceChildren();
   if (fetchError) { b.append(h("div", { class: "banner bad" }, h("p", {}, "Cannot reach stackwire: " + fetchError))); return; }
   const j = state.job;
-  if (state.dockerError) b.append(h("div", { class: "banner bad" }, h("p", {}, "Docker is not reachable: " + state.dockerError)));
+  if (state.dockerError) b.append(h("div", { class: "banner bad" }, h("p", {}, "Cannot manage the apps: " + state.dockerError)));
   if (j.running) {
     b.append(h("div", { class: "banner" }, h("span", { class: "spinner" }), h("p", {}, j.name + "…"),
       h("button", { onclick: () => setView("activity") }, "Show progress")));
@@ -432,7 +436,13 @@ function render() {
     renderedApps = key;
     const mine = state.apps.filter(a => a.selected || a.container), rest = state.apps.filter(a => !a.selected && !a.container);
     $("mine").replaceChildren(...(mine.length ? mine.map(card) : [h("p", { class: "empty" }, "No apps yet. Install one from the list below, then apply the changes.")]));
-    $("available").replaceChildren(...(rest.length ? rest.map(card) : [h("p", { class: "empty" }, "Everything in the catalog is installed.")]));
+    const groups = {};
+    for (const a of rest) (groups[a.category] = groups[a.category] || []).push(a);
+    const order = ["media", "photos", "documents", "files", "tools"];
+    const names = Object.keys(groups).sort((x, y) => (order.indexOf(x) + 1 || 99) - (order.indexOf(y) + 1 || 99));
+    $("available").replaceChildren(...(rest.length ? names.flatMap(c => [
+      h("h3", { class: "group" }, categoryNames[c] || c), h("div", { class: "grid" }, ...groups[c].map(card))])
+      : [h("p", { class: "empty" }, "Everything in the catalog is installed.")]));
   }
 
   $("activity-title").textContent = state.job.id ? state.job.name + (state.job.running ? " (running)" : state.job.error ? " (failed)" : " (done)") : "Activity";

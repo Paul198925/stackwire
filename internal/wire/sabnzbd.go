@@ -1,14 +1,9 @@
 package wire
 
 import (
-	"bufio"
-	"errors"
 	"fmt"
 	"net/url"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
+	"regexp"
 
 	"stackwire/internal/catalog"
 	"stackwire/internal/stack"
@@ -97,44 +92,11 @@ func (sabnzbd) Wire(c *Ctx, a catalog.App) error {
 	return nil
 }
 
-// sabnzbdKey returns SABnzbd's API key. SABnzbd generates it on its first
-// start and writes it to its config file, which lives in the stack folder.
+var sabnzbdKeyRe = regexp.MustCompile(`(?m)^\s*api_key\s*=\s*(\S+)`)
+
+// sabnzbdKey returns SABnzbd's API key, which it generates on its first start.
 func sabnzbdKey(c *Ctx, a catalog.App) (string, error) {
-	path := filepath.Join(c.Cfg.Abs(c.Cfg.ConfigDir), a.ID, "sabnzbd.ini")
-	var key string
-	// The file can lag behind the health check by a moment.
-	for i := 0; i < 15 && key == ""; i++ {
-		if i > 0 {
-			time.Sleep(time.Second)
-		}
-		f, err := os.Open(path)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return "", err
-		}
-		sc := bufio.NewScanner(f)
-		for sc.Scan() {
-			k, v, ok := strings.Cut(sc.Text(), "=")
-			if ok && strings.TrimSpace(k) == "api_key" {
-				key = strings.TrimSpace(v)
-				break
-			}
-		}
-		f.Close()
-	}
-	if key == "" {
-		return "", fmt.Errorf("no api_key in %s", path)
-	}
-	// The *arr apps read it from the secrets, like every other key.
-	if c.Secrets.Get(sabnzbdKeySecret) != key {
-		c.Secrets.Set(sabnzbdKeySecret, key)
-		if err := c.Secrets.Save(); err != nil {
-			return "", err
-		}
-	}
-	return key, nil
+	return keyFromConfig(c, a, "sabnzbd.ini", sabnzbdKeySecret, sabnzbdKeyRe)
 }
 
 func sabnzbdFacts(c *Ctx, a catalog.App) ([]Fact, error) {
