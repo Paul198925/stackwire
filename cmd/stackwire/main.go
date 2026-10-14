@@ -10,11 +10,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"stackwire/internal/catalog"
 	"stackwire/internal/ops"
+	"stackwire/internal/render"
 	"stackwire/internal/stack"
 	"stackwire/internal/web"
 	"stackwire/internal/wire"
@@ -91,7 +93,7 @@ func cmdInit(args []string) error {
 	fs, dir := newFlags("init")
 	domain := fs.String("domain", "", "base domain; apps get https://<app>.<domain>. Empty: reach apps by port")
 	email := fs.String("email", "", "contact address for Let's Encrypt (with --domain)")
-	apps := fs.String("apps", "", "comma-separated app IDs (default: the media stack)")
+	apps := fs.String("apps", "", "comma-separated app IDs, or \"none\" to choose them later in the web interface (default: the media stack)")
 	data := fs.String("data", "", "directory for media and downloads (default: ./data)")
 	tz := fs.String("tz", "", "timezone, e.g. Europe/Berlin (default: detected)")
 	if err := fs.Parse(args); err != nil {
@@ -106,7 +108,9 @@ func cmdInit(args []string) error {
 	}
 	cfg := stack.Default(abs)
 	cfg.Domain, cfg.Email = strings.ToLower(*domain), *email
-	if *apps != "" {
+	if *apps == "none" {
+		cfg.Apps = nil
+	} else if *apps != "" {
 		cfg.Apps = strings.Split(*apps, ",")
 	}
 	if *data != "" {
@@ -247,6 +251,24 @@ func cmdServe(args []string) error {
 	if !local {
 		fmt.Println("Note: other devices can reach this page and the connection is not encrypted. Use it on a network you trust.")
 	}
-	srv := &http.Server{Handler: web.New(abs).Handler(), ReadHeaderTimeout: 10 * time.Second}
+	handler := web.New(abs).Handler()
+	if u := render.UIURL(s.Cfg); u != "" {
+		if port != strconv.Itoa(render.UIPort) {
+			fmt.Printf("Note: the proxy expects this page on port %d, so %s will not work with --addr %s.\n", render.UIPort, u, *addr)
+		}
+		// Without apps or after `down` no proxy runs, and the page would
+		// only be reachable locally.
+		switch started, err := ops.StartProxy(s, os.Stdout); {
+		case err != nil:
+			fmt.Printf("Could not start the proxy: %v\n", err)
+		case started:
+			fmt.Printf("With DNS for *.%s pointing here, it is also at %s\n", s.Cfg.Domain, u)
+		default:
+			fmt.Printf("Apply the pending changes to make it reachable at %s\n", u)
+		}
+	}
+	// A domain can be set or removed in the browser at any time.
+	go web.ServeProxyAccess(abs, handler, os.Stdout)
+	srv := &http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	return srv.Serve(ln)
 }

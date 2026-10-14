@@ -22,6 +22,13 @@ import (
 const (
 	ComposeFile  = "docker-compose.yml"
 	ProxyService = "proxy"
+
+	// In domain mode the proxy also serves the web interface, which runs on
+	// the host (`stackwire serve`), under this subdomain.
+	UISubdomain = "stackwire"
+	UIPort      = 8900
+	// Name under which the proxy container reaches the host.
+	hostAlias = "host.docker.internal"
 )
 
 type composeFile struct {
@@ -36,6 +43,7 @@ type service struct {
 	Environment map[string]string `yaml:"environment,omitempty"`
 	Ports       []string          `yaml:"ports,omitempty"`
 	Volumes     []volume          `yaml:"volumes,omitempty"`
+	ExtraHosts  []string          `yaml:"extra_hosts,omitempty"`
 	DependsOn   []string          `yaml:"depends_on,omitempty"`
 }
 
@@ -82,8 +90,8 @@ func Compose(cfg *stack.Config, apps []catalog.App) ([]byte, error) {
 		bind = "127.0.0.1:"
 	}
 	for _, a := range apps {
-		if a.ID == ProxyService {
-			return nil, fmt.Errorf("app ID %q is reserved", a.ID)
+		if a.ID == ProxyService || a.Subdomain == UISubdomain {
+			return nil, fmt.Errorf("app %q uses a reserved name", a.ID)
 		}
 		env := map[string]string{
 			"TZ":   cfg.Timezone,
@@ -133,7 +141,8 @@ func Compose(cfg *stack.Config, apps []catalog.App) ([]byte, error) {
 				{Type: "volume", Source: "caddy_data", Target: "/data"},
 				{Type: "volume", Source: "caddy_config", Target: "/config"},
 			},
-			DependsOn: deps,
+			ExtraHosts: []string{hostAlias + ":host-gateway"},
+			DependsOn:  deps,
 		}
 		cf.Volumes = map[string]struct{}{"caddy_data": {}, "caddy_config": {}}
 	}
@@ -151,16 +160,31 @@ func Caddyfile(cfg *stack.Config, apps []catalog.App) string {
 	if cfg.Email != "" {
 		fmt.Fprintf(&b, "{\n\temail %s\n}\n", cfg.Email)
 	}
+	fmt.Fprintf(&b, "\n%s.%s {\n\treverse_proxy %s:%d\n}\n", UISubdomain, cfg.Domain, hostAlias, UIPort)
 	for _, a := range apps {
 		fmt.Fprintf(&b, "\n%s.%s {\n\treverse_proxy %s:%d\n}\n", a.Subdomain, cfg.Domain, a.ID, a.Port)
 	}
 	return b.String()
 }
 
+// UIURL is the address of the web interface in domain mode, or "".
+func UIURL(cfg *stack.Config) string {
+	if cfg.Domain == "" {
+		return ""
+	}
+	return fmt.Sprintf("https://%s.%s", UISubdomain, cfg.Domain)
+}
+
+// HasServices reports whether the stack has anything to run. In domain mode
+// the proxy runs even without apps, so the web interface stays reachable.
+func HasServices(cfg *stack.Config, apps []catalog.App) bool {
+	return len(apps) > 0 || cfg.Domain != ""
+}
+
 // UpToDate reports whether the generated files on disk match the
 // configuration, i.e. whether there are settings that were not applied yet.
 func UpToDate(cfg *stack.Config, apps []catalog.App) bool {
-	if len(apps) == 0 {
+	if !HasServices(cfg, apps) {
 		return true
 	}
 	want, err := Compose(cfg, apps)

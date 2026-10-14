@@ -30,6 +30,8 @@ var static embed.FS
 const (
 	sessionCookie = "stackwire_session"
 	sessionTTL    = 12 * time.Hour
+
+	maxLoginFailures = 10
 	// Browsers only send this header from same-origin scripts, so its
 	// presence rules out forged cross-site requests.
 	csrfHeader = "X-Stackwire"
@@ -46,6 +48,7 @@ type Server struct {
 
 	mu       sync.Mutex
 	sessions map[string]time.Time
+	failed   []time.Time // recent failed logins
 	job      *job
 	jobSeq   int
 }
@@ -111,6 +114,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "bad request")
 		return
 	}
+	if s.tooManyFailures() {
+		fail(w, http.StatusTooManyRequests, "too many failed attempts, try again in a minute")
+		return
+	}
 	st, err := ops.Load(s.dir)
 	if err != nil {
 		fail(w, http.StatusInternalServerError, err.Error())
@@ -119,6 +126,9 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	userOK := subtle.ConstantTimeCompare([]byte(in.User), []byte(st.Secrets.Get(stack.AdminUser)))
 	passOK := subtle.ConstantTimeCompare([]byte(in.Password), []byte(st.Secrets.Get(stack.AdminPassword)))
 	if userOK&passOK != 1 {
+		s.mu.Lock()
+		s.failed = append(s.failed, time.Now())
+		s.mu.Unlock()
 		time.Sleep(time.Second) // slows down guessing
 		fail(w, http.StatusUnauthorized, "wrong user or password")
 		return
@@ -137,6 +147,21 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Secure: r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https", MaxAge: int(sessionTTL.Seconds()),
 	})
 	writeJSON(w, map[string]bool{"ok": true})
+}
+
+// tooManyFailures limits password guessing once the page is reachable from
+// the internet: after maxLoginFailures failed logins within a minute, further
+// attempts are refused until the oldest one is a minute old.
+func (s *Server) tooManyFailures() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cut := time.Now().Add(-time.Minute)
+	i := 0
+	for i < len(s.failed) && s.failed[i].Before(cut) {
+		i++
+	}
+	s.failed = s.failed[i:]
+	return len(s.failed) >= maxLoginFailures
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -173,6 +198,7 @@ type stateResponse struct {
 		Dir      string `json:"dir"`
 	} `json:"config"`
 	AdminUser   string     `json:"adminUser"`
+	UIURL       string     `json:"uiUrl"` // address of this page in domain mode
 	Apps        []appState `json:"apps"`
 	Pending     bool       `json:"pending"` // configuration and running stack differ
 	DockerError string     `json:"dockerError,omitempty"`
@@ -194,6 +220,7 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	resp.Config.Domain, resp.Config.Email = st.Cfg.Domain, st.Cfg.Email
 	resp.Config.Timezone, resp.Config.DataDir, resp.Config.Dir = st.Cfg.Timezone, st.Cfg.DataDir, st.Cfg.Dir
 	resp.AdminUser = st.Secrets.Get(stack.AdminUser)
+	resp.UIURL = render.UIURL(st.Cfg)
 
 	containers, err := s.Containers(st.Cfg.Name)
 	if err != nil {

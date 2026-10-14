@@ -73,7 +73,7 @@ func (s *Stack) Render(out io.Writer) (*wire.Ctx, error) {
 // Up brings the running stack in line with the configuration: it starts the
 // selected apps, removes the ones no longer selected and configures them.
 func Up(s *Stack, out io.Writer, timeout time.Duration) error {
-	if len(s.Apps) == 0 {
+	if !render.HasServices(s.Cfg, s.Apps) {
 		fmt.Fprintln(out, "No apps selected, removing the containers.")
 		return dockerx.Project(s.Cfg.Name, out, "down", "--remove-orphans")
 	}
@@ -82,22 +82,24 @@ func Up(s *Stack, out io.Writer, timeout time.Duration) error {
 	if err != nil {
 		return err
 	}
-	// The proxy starts last: a fresh *arr app lets the first visitor create
-	// the login, so nothing is reachable from outside before that is set.
-	up := append([]string{"up", "-d", "--remove-orphans"}, render.AppServices(s.Apps)...)
-	if err := dockerx.Compose(s.Cfg.Dir, out, up...); err != nil {
-		return err
-	}
-	fmt.Fprintln(out, "\nWaiting for the apps:")
-	if err := wire.Wait(ctx, timeout); err != nil {
-		return err
-	}
-	fmt.Fprintln(out, "\nConfiguring:")
-	if err := wire.Run(ctx); err != nil {
-		return err
+	if len(s.Apps) > 0 {
+		// The proxy starts last: a fresh *arr app lets the first visitor create
+		// the login, so nothing is reachable from outside before that is set.
+		up := append([]string{"up", "-d", "--remove-orphans"}, render.AppServices(s.Apps)...)
+		if err := dockerx.Compose(s.Cfg.Dir, out, up...); err != nil {
+			return err
+		}
+		fmt.Fprintln(out, "\nWaiting for the apps:")
+		if err := wire.Wait(ctx, timeout); err != nil {
+			return err
+		}
+		fmt.Fprintln(out, "\nConfiguring:")
+		if err := wire.Run(ctx); err != nil {
+			return err
+		}
 	}
 	if s.Cfg.Domain != "" {
-		if err := dockerx.Compose(s.Cfg.Dir, out, "up", "-d"); err != nil {
+		if err := dockerx.Compose(s.Cfg.Dir, out, "up", "-d", "--remove-orphans"); err != nil {
 			return err
 		}
 		// Compose leaves a running proxy alone when only the Caddyfile
@@ -112,6 +114,26 @@ func Up(s *Stack, out io.Writer, timeout time.Duration) error {
 	fmt.Fprintln(out)
 	Summary(s, out)
 	return nil
+}
+
+// StartProxy starts only the proxy, so the web interface is reachable under
+// the domain before any app is installed or while the apps are stopped.
+// It reports false if the settings have to be applied first.
+func StartProxy(s *Stack, out io.Writer) (bool, error) {
+	if s.Cfg.Domain == "" {
+		return false, nil
+	}
+	// Existing files are left alone: they describe what is running, and the
+	// web interface compares them with the settings to show pending changes.
+	if _, err := os.Stat(filepath.Join(s.Cfg.Dir, render.ComposeFile)); err != nil {
+		if _, err := s.Render(out); err != nil {
+			return false, err
+		}
+	} else if !render.UpToDate(s.Cfg, s.Apps) {
+		return false, nil
+	}
+	err := dockerx.Compose(s.Cfg.Dir, out, "up", "-d", "--no-deps", render.ProxyService)
+	return err == nil, err
 }
 
 // Wire configures the apps of a running stack again.
@@ -130,9 +152,16 @@ func Down(s *Stack, out io.Writer) error {
 
 // Summary prints where the apps are and how to log in.
 func Summary(s *Stack, out io.Writer) {
-	fmt.Fprintln(out, "Your stack is running:")
+	if len(s.Apps) == 0 {
+		fmt.Fprintln(out, "No apps are installed.")
+	} else {
+		fmt.Fprintln(out, "Your stack is running:")
+	}
 	for _, a := range s.Apps {
 		fmt.Fprintf(out, "  %-12s %s\n", a.Name, s.Cfg.PublicURL(a.ID, a.Subdomain, a.Port))
+	}
+	if u := render.UIURL(s.Cfg); u != "" {
+		fmt.Fprintf(out, "  %-12s %s (while `stackwire serve` runs)\n", "stackwire", u)
 	}
 	fmt.Fprintf(out, "\nLogin for every app: user %q, password in %s (%s).\n",
 		s.Secrets.Get(stack.AdminUser), filepath.Join(s.Cfg.Dir, stack.SecretsFile), stack.AdminPassword)

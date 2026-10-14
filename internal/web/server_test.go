@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"stackwire/internal/ops"
 	"stackwire/internal/stack"
@@ -17,6 +18,7 @@ type client struct {
 	base string
 	hc   *http.Client
 	csrf bool
+	srv  *Server
 }
 
 func (c *client) do(method, path, body string) (int, map[string]any) {
@@ -48,7 +50,7 @@ func setup(t *testing.T) (*client, string) {
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 	jar, _ := cookiejar.New(nil)
-	return &client{t: t, base: ts.URL, hc: &http.Client{Jar: jar}, csrf: true}, dir
+	return &client{t: t, base: ts.URL, hc: &http.Client{Jar: jar}, csrf: true, srv: srv}, dir
 }
 
 func login(t *testing.T, c *client, dir string) {
@@ -136,6 +138,30 @@ func TestSelectAppsAndSettings(t *testing.T) {
 	}
 	if cfg2, _ := stack.Load(dir); cfg2.Domain != "media.example.com" {
 		t.Error("a rejected change was saved")
+	}
+}
+
+func TestLoginIsThrottled(t *testing.T) {
+	c, dir := setup(t)
+	st, _ := ops.Load(dir)
+	good, _ := json.Marshal(map[string]string{"user": "admin", "password": st.Secrets.Get(stack.AdminPassword)})
+	// Failures recorded directly; going through the handler would sleep a second each.
+	srv := c.srv
+	srv.mu.Lock()
+	for i := 0; i < maxLoginFailures; i++ {
+		srv.failed = append(srv.failed, time.Now())
+	}
+	srv.mu.Unlock()
+	if code, _ := c.do("POST", "/api/login", string(good)); code != http.StatusTooManyRequests {
+		t.Errorf("login after %d failures = %d, want 429", maxLoginFailures, code)
+	}
+	srv.mu.Lock()
+	for i := range srv.failed {
+		srv.failed[i] = time.Now().Add(-2 * time.Minute)
+	}
+	srv.mu.Unlock()
+	if code, _ := c.do("POST", "/api/login", string(good)); code != 200 {
+		t.Errorf("login after the failures expired = %d, want 200", code)
 	}
 }
 

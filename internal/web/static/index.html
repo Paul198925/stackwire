@@ -58,6 +58,7 @@ button.link { border: 0; background: none; color: var(--muted); padding: 6px 4px
 .field { margin-bottom: 14px; max-width: 520px; }
 .field label { display: block; font-weight: 600; margin-bottom: 4px; }
 .field small { display: block; color: var(--muted); margin-top: 4px; }
+.field small a { color: var(--accent); }
 input[type=text], input[type=password], input[type=email], input[type=number] { font: inherit; width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); }
 .ports { display: grid; grid-template-columns: max-content 120px; gap: 8px 16px; align-items: center; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -115,7 +116,8 @@ dialog h3 { margin: 0; }
         <h2>Access</h2>
         <div class="panel">
           <div class="field"><label for="s-domain">Domain</label><input id="s-domain" type="text" placeholder="media.example.com" autocomplete="off" spellcheck="false">
-            <small>Each app gets <code>https://app.your-domain</code> with a certificate. The server needs ports 80 and 443 open and a DNS entry for <code>*.your-domain</code>. Leave empty to reach the apps by port on your network.</small></div>
+            <small>Each app gets <code>https://app.your-domain</code> with a certificate. The server needs ports 80 and 443 open and a DNS entry for <code>*.your-domain</code>. Leave empty to reach the apps by port on your network.</small>
+            <small id="s-ui" hidden>This page is then at <a id="s-ui-link" href="" rel="noopener"></a>.</small></div>
           <div class="field"><label for="s-email">Email for certificates</label><input id="s-email" type="email" placeholder="you@example.com">
             <small>Let's Encrypt sends expiry warnings here. Only used with a domain.</small></div>
         </div>
@@ -312,6 +314,7 @@ function fillSettings() {
   const c = state.config;
   $("s-domain").value = c.domain; $("s-email").value = c.email; $("s-tz").value = c.timezone; $("s-data").value = c.dataDir;
   $("s-dir").textContent = c.dir;
+  $("s-ui").hidden = !state.uiUrl; $("s-ui-link").href = state.uiUrl; $("s-ui-link").textContent = state.uiUrl;
   $("s-ports").replaceChildren(...state.apps.flatMap(a => [
     h("label", { for: "port-" + a.id }, a.name),
     h("input", { id: "port-" + a.id, type: "number", min: 1, max: 65535, value: a.port, "data-app": a.id, required: true }),

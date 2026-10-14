@@ -76,10 +76,40 @@ func TestComposeDomainMode(t *testing.T) {
 		t.Fatalf("proxy = %+v", p)
 	}
 	caddy := Caddyfile(cfg, apps)
-	for _, want := range []string{"email me@example.com", "jellyfin.example.com {", "reverse_proxy sonarr:8989"} {
+	if len(p.ExtraHosts) != 1 || p.ExtraHosts[0] != "host.docker.internal:host-gateway" {
+		t.Errorf("proxy cannot reach the host: extra_hosts = %v", p.ExtraHosts)
+	}
+	for _, want := range []string{"email me@example.com", "jellyfin.example.com {", "reverse_proxy sonarr:8989",
+		"stackwire.example.com {", "reverse_proxy host.docker.internal:8900"} {
 		if !strings.Contains(caddy, want) {
 			t.Errorf("Caddyfile lacks %q:\n%s", want, caddy)
 		}
+	}
+}
+
+func TestDomainModeWithoutApps(t *testing.T) {
+	cfg, _ := mediaStack(t)
+	cfg.Domain = "example.com"
+	// The proxy alone keeps the web interface reachable.
+	cf := parse(t, cfg, nil)
+	if _, ok := cf.Services[ProxyService]; !ok || len(cf.Services) != 1 {
+		t.Fatalf("services = %v, want only the proxy", cf.Services)
+	}
+	if !strings.Contains(Caddyfile(cfg, nil), "stackwire.example.com {") {
+		t.Error("Caddyfile lacks the web interface")
+	}
+	if UpToDate(cfg, nil) {
+		t.Error("an unwritten proxy-only stack counts as up to date")
+	}
+	if err := Write(cfg, nil); err != nil {
+		t.Fatal(err)
+	}
+	if !UpToDate(cfg, nil) {
+		t.Error("stack is not up to date right after writing it")
+	}
+	cfg.Domain = ""
+	if !UpToDate(cfg, nil) || HasServices(cfg, nil) {
+		t.Error("a stack without apps and domain has nothing to apply")
 	}
 }
 

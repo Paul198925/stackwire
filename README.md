@@ -54,7 +54,18 @@ Open http://localhost:8900 and sign in as `admin` with `ADMIN_PASSWORD` from the
 - change domain, timezone, data folder and ports
 - look up the shared login, stop everything
 
-The page only listens on this machine by default. To reach it from other devices on your network, start it with `--addr 0.0.0.0:8900`. The connection is not encrypted, so do not expose that port to the internet; on a remote server use an SSH tunnel (`ssh -L 8900:localhost:8900 you@server`).
+The page only listens on this machine by default. To reach it from other devices on your network, start it with `--addr 0.0.0.0:8900`. That connection is not encrypted, so do not expose the port to the internet.
+
+With a domain, the page is served over HTTPS at `https://stackwire.<domain>`, next to the apps. On a fresh server this is all it takes:
+
+```bash
+stackwire init --dir /opt/media --domain media.example.com --email you@example.com --apps none
+stackwire serve --dir /opt/media
+```
+
+`serve` starts the proxy by itself, so the page is reachable before any app is installed. It has to keep running (as a service, for example) and must use the default port 8900.
+
+On Linux the proxy container reaches the page through the Docker bridge. A host firewall that blocks traffic from containers to the host (ufw does by default) has to allow port 8900 from the Docker networks.
 
 ## Files in the stack directory
 
