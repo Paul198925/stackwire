@@ -158,6 +158,9 @@ func Summary(s *Stack, out io.Writer) {
 		fmt.Fprintln(out, "Your stack is running:")
 	}
 	for _, a := range s.Apps {
+		if a.Internal {
+			continue
+		}
 		fmt.Fprintf(out, "  %-12s %s\n", a.Name, s.Cfg.PublicURL(a.ID, a.Subdomain, a.Port))
 	}
 	if u := render.UIURL(s.Cfg); u != "" {
@@ -169,8 +172,8 @@ func Summary(s *Stack, out io.Writer) {
 		fmt.Fprintf(out, "DNS: point *.%s (or each app's subdomain) to this server; ports 80 and 443 must be open.\n", s.Cfg.Domain)
 	}
 	for _, a := range s.Apps {
-		if a.Driver == "prowlarr" {
-			fmt.Fprintln(out, "Left to do: add your indexers in Prowlarr. They sync to the other apps on their own.")
+		if a.Todo != "" {
+			fmt.Fprintf(out, "Left to do in %s: %s\n", a.Name, a.Todo)
 		}
 	}
 }

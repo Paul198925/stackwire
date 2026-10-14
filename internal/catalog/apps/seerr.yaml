@@ -1,0 +1,14 @@
+id: seerr
+name: Seerr
+category: media
+description: Lets family and friends request movies and shows
+image: ghcr.io/seerr-team/seerr:latest
+port: 5055
+health: /api/v1/status
+# The image has no PUID/PGID handling.
+runAsUser: true
+volumes:
+  - config:/app/config
+requires:
+  - jellyfin
+driver: seerr

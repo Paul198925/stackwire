@@ -180,16 +180,18 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 // --- state ---
 
 type appState struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Category    string `json:"category"`
-	Selected    bool   `json:"selected"`  // part of the configuration
-	Container   string `json:"container"` // compose state, empty if there is no container
-	Healthy     bool   `json:"healthy"`
-	URL         string `json:"url"`  // set in domain mode
-	Port        int    `json:"port"` // published web port
-	DefaultPort int    `json:"defaultPort"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Category    string   `json:"category"`
+	Selected    bool     `json:"selected"`  // part of the configuration
+	Internal    bool     `json:"internal"`  // has no page to open
+	Requires    []string `json:"requires"`  // names of the apps installed along with it
+	Container   string   `json:"container"` // compose state, empty if there is no container
+	Healthy     bool     `json:"healthy"`
+	URL         string   `json:"url"`  // set in domain mode
+	Port        int      `json:"port"` // published web port
+	DefaultPort int      `json:"defaultPort"`
 }
 
 type stateResponse struct {
@@ -240,11 +242,18 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	for i, a := range all {
 		as := appState{
 			ID: a.ID, Name: a.Name, Description: a.Description, Category: a.Category,
-			Selected: selected[a.ID], Container: containers[a.ID],
+			Selected: selected[a.ID], Container: containers[a.ID], Internal: a.Internal,
 			Port: st.Cfg.HostPort(a.ID, a.Port), DefaultPort: a.Port,
 		}
 		if st.Cfg.Domain != "" {
 			as.URL = st.Cfg.PublicURL(a.ID, a.Subdomain, a.Port)
+		}
+		for _, req := range a.Requires {
+			for _, other := range all {
+				if other.ID == req {
+					as.Requires = append(as.Requires, other.Name)
+				}
+			}
 		}
 		if as.Selected != (as.Container == "running") {
 			resp.Pending = true
@@ -309,19 +318,26 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSelect(install bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		if _, err := catalog.Resolve([]string{id}); err != nil {
+		if _, err := catalog.Get(id); err != nil {
 			fail(w, http.StatusNotFound, err.Error())
 			return
 		}
 		s.edit(w, func(cfg *stack.Config) error {
+			if install {
+				// Apps this one needs are installed along with it.
+				apps, err := catalog.WithRequirements(append(cfg.Apps, id))
+				cfg.Apps = apps
+				return err
+			}
 			var apps []string
 			for _, a := range cfg.Apps {
 				if a != id {
 					apps = append(apps, a)
 				}
 			}
-			if install {
-				apps = append(apps, id)
+			// Fails with a clear message if another app still needs this one.
+			if _, err := catalog.Resolve(apps); err != nil {
+				return fmt.Errorf("cannot remove %s: %w", id, err)
 			}
 			cfg.Apps = apps
 			return nil
@@ -385,22 +401,22 @@ func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRestart(w http.ResponseWriter, r *http.Request) {
-	apps, err := catalog.Resolve([]string{r.PathValue("id")})
+	app, err := catalog.Get(r.PathValue("id"))
 	if err != nil {
 		fail(w, http.StatusNotFound, err.Error())
 		return
 	}
-	s.startJob(w, "Restarting "+apps[0].Name, func(out io.Writer) error {
+	s.startJob(w, "Restarting "+app.Name, func(out io.Writer) error {
 		cfg, err := stack.Load(s.dir)
 		if err != nil {
 			return err
 		}
-		return dockerx.Project(cfg.Name, out, "restart", apps[0].ID)
+		return dockerx.Project(cfg.Name, out, "restart", app.ID)
 	})
 }
 
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
-	apps, err := catalog.Resolve([]string{r.PathValue("id")})
+	app, err := catalog.Get(r.PathValue("id"))
 	if err != nil {
 		fail(w, http.StatusNotFound, err.Error())
 		return
@@ -411,7 +427,7 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var buf bytes.Buffer
-	if err := dockerx.Project(cfg.Name, &buf, "logs", "--no-color", "--no-log-prefix", "--tail", "300", apps[0].ID); err != nil {
+	if err := dockerx.Project(cfg.Name, &buf, "logs", "--no-color", "--no-log-prefix", "--tail", "300", app.ID); err != nil {
 		fail(w, http.StatusInternalServerError, strings.TrimSpace(buf.String()+"\n"+err.Error()))
 		return
 	}

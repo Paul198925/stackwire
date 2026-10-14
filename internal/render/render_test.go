@@ -113,6 +113,46 @@ func TestDomainModeWithoutApps(t *testing.T) {
 	}
 }
 
+func TestInternalAndRunAsUserApps(t *testing.T) {
+	cfg := stack.Default(t.TempDir())
+	apps, err := catalog.Resolve([]string{"jellyfin", "prowlarr", "flaresolverr", "seerr"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Without a domain the other apps listen on all interfaces.
+	cf := parse(t, cfg, apps)
+	if got := cf.Services["flaresolverr"].Ports[0]; got != "127.0.0.1:8191:8191" {
+		t.Errorf("an app without login is published as %s", got)
+	}
+	if got := cf.Services["prowlarr"].Ports[0]; got != "9696:9696" {
+		t.Errorf("prowlarr ports = %s", got)
+	}
+	if got := cf.Services["seerr"].User; got == "" || cf.Services["prowlarr"].User != "" {
+		t.Errorf("user: seerr = %q, prowlarr = %q", got, cf.Services["prowlarr"].User)
+	}
+	cfg.Domain = "example.com"
+	caddy := Caddyfile(cfg, apps)
+	if strings.Contains(caddy, "flaresolverr.example.com") || !strings.Contains(caddy, "seerr.example.com {") {
+		t.Errorf("proxy routes are wrong:\n%s", caddy)
+	}
+}
+
+func TestRequirements(t *testing.T) {
+	if _, err := catalog.Resolve([]string{"seerr"}); err == nil {
+		t.Error("seerr without jellyfin was accepted")
+	}
+	got, err := catalog.WithRequirements([]string{"sonarr", "seerr", "flaresolverr"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(got, ",") != "sonarr,jellyfin,seerr,prowlarr,flaresolverr" {
+		t.Errorf("WithRequirements = %v", got)
+	}
+	if _, err := catalog.Resolve(got); err != nil {
+		t.Errorf("result does not resolve: %v", err)
+	}
+}
+
 func TestWriteCreatesLayout(t *testing.T) {
 	cfg, apps := mediaStack(t)
 	if err := Write(cfg, apps); err != nil {

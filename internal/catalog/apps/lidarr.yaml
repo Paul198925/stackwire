@@ -1,0 +1,35 @@
+id: lidarr
+name: Lidarr
+category: media
+description: Music manager
+image: lscr.io/linuxserver/lidarr:latest
+port: 8686
+health: /ping
+secrets:
+  LIDARR_API_KEY: hex32
+env:
+  LIDARR__AUTH__APIKEY: ${LIDARR_API_KEY}
+volumes:
+  - config:/config
+  - data:/data
+dataDirs:
+  - media/music
+  - torrents/music
+driver: arr
+arr:
+  apiVersion: v1
+  apiKeySecret: LIDARR_API_KEY
+  rootFolder: /data/media/music
+  # Lidarr's root folders carry a name and default profiles.
+  rootFolderName: Music
+  category: music
+  prowlarrApp: Lidarr
+  counts:
+    - label: Artists
+      path: /artist
+    - label: Missing albums
+      path: /wanted/missing?pageSize=1
+      field: totalRecords
+    - label: In download queue
+      path: /queue?pageSize=1
+      field: totalRecords

@@ -11,6 +11,7 @@ env:
   PROWLARR__AUTH__APIKEY: ${PROWLARR_API_KEY}
 volumes:
   - config:/config
+todo: Add your indexers. They sync to the other apps on their own.
 driver: prowlarr
 arr:
   apiVersion: v1

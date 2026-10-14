@@ -29,6 +29,10 @@ type App struct {
 	Volumes     []string          `yaml:"volumes"`    // "config:/path" or "data:/path"
 	ExtraPorts  []string          `yaml:"extraPorts"` // published as-is
 	DataDirs    []string          `yaml:"dataDirs"`   // created below the data directory
+	Requires    []string          `yaml:"requires"`   // apps that must be installed as well
+	Internal    bool              `yaml:"internal"`   // used by other apps only: never published or routed
+	RunAsUser   bool              `yaml:"runAsUser"`  // start the container as PUID:PGID (images without PUID support)
+	Todo        string            `yaml:"todo"`       // what only the user can decide, shown after setup
 	Driver      string            `yaml:"driver"`
 	Arr         *ArrSpec          `yaml:"arr"`
 	Jellyfin    *JellyfinSpec     `yaml:"jellyfin"`
@@ -36,12 +40,17 @@ type App struct {
 
 // ArrSpec configures the Servarr family (Sonarr, Radarr, Prowlarr).
 type ArrSpec struct {
-	APIVersion   string     `yaml:"apiVersion"`
-	APIKeySecret string     `yaml:"apiKeySecret"`
-	RootFolder   string     `yaml:"rootFolder"`
-	Category     string     `yaml:"category"`    // download client category
-	ProwlarrApp  string     `yaml:"prowlarrApp"` // Prowlarr application implementation
-	Counts       []ArrCount `yaml:"counts"`      // numbers for the dashboard
+	APIVersion   string `yaml:"apiVersion"`
+	APIKeySecret string `yaml:"apiKeySecret"`
+	RootFolder   string `yaml:"rootFolder"`
+	// RootFolderName is set for apps whose root folders need a name and
+	// default profiles (Lidarr).
+	RootFolderName string `yaml:"rootFolderName"`
+	// Seerr is "sonarr" or "radarr" if Seerr can send requests to this app.
+	Seerr       string     `yaml:"seerr"`
+	Category    string     `yaml:"category"`    // download client category
+	ProwlarrApp string     `yaml:"prowlarrApp"` // Prowlarr application implementation
+	Counts      []ArrCount `yaml:"counts"`      // numbers for the dashboard
 }
 
 // ArrCount is a number read from a Servarr API endpoint.
@@ -61,6 +70,9 @@ type JellyfinLibrary struct {
 	Name string `yaml:"name"`
 	Type string `yaml:"type"`
 	Path string `yaml:"path"`
+	// Requires names the app that fills this library; without it the
+	// library is not created.
+	Requires string `yaml:"requires"`
 }
 
 // All returns every app in the catalog, sorted by ID.
@@ -91,7 +103,22 @@ func All() ([]App, error) {
 	return apps, nil
 }
 
-// Resolve returns the apps with the given IDs, in the given order.
+// Get returns one app from the catalog.
+func Get(id string) (App, error) {
+	all, err := All()
+	if err != nil {
+		return App{}, err
+	}
+	for _, a := range all {
+		if a.ID == id {
+			return a, nil
+		}
+	}
+	return App{}, fmt.Errorf("unknown app %q (run `stackwire apps` for the catalog)", id)
+}
+
+// Resolve returns the apps with the given IDs, in the given order. It fails
+// if an app is selected without the apps it needs.
 func Resolve(ids []string) ([]App, error) {
 	all, err := All()
 	if err != nil {
@@ -111,6 +138,52 @@ func Resolve(ids []string) ([]App, error) {
 		if !seen[id] {
 			seen[id] = true
 			out = append(out, a)
+		}
+	}
+	for _, a := range out {
+		for _, req := range a.Requires {
+			if !seen[req] {
+				return nil, fmt.Errorf("%s needs %s, which is not selected", a.ID, req)
+			}
+		}
+	}
+	return out, nil
+}
+
+// WithRequirements adds the apps that the given ones need, directly or
+// through another app, and returns the IDs in a stable order.
+func WithRequirements(ids []string) ([]string, error) {
+	all, err := All()
+	if err != nil {
+		return nil, err
+	}
+	byID := map[string]App{}
+	for _, a := range all {
+		byID[a.ID] = a
+	}
+	seen := map[string]bool{}
+	var out []string
+	var add func(id string) error
+	add = func(id string) error {
+		a, ok := byID[id]
+		if !ok {
+			return fmt.Errorf("unknown app %q", id)
+		}
+		if seen[id] {
+			return nil
+		}
+		seen[id] = true
+		for _, req := range a.Requires {
+			if err := add(req); err != nil {
+				return err
+			}
+		}
+		out = append(out, id)
+		return nil
+	}
+	for _, id := range ids {
+		if err := add(id); err != nil {
+			return nil, err
 		}
 	}
 	return out, nil

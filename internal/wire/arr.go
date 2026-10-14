@@ -97,11 +97,38 @@ func (cl *arrClient) ensureRootFolder(c *Ctx, a catalog.App) error {
 			return nil
 		}
 	}
-	if err := cl.do("POST", "/rootfolder", map[string]any{"path": want}, nil); err != nil {
+	body := map[string]any{"path": want}
+	if a.Arr.RootFolderName != "" {
+		quality, err := cl.firstID("/qualityprofile")
+		if err != nil {
+			return err
+		}
+		metadata, err := cl.firstID("/metadataprofile")
+		if err != nil {
+			return err
+		}
+		body["name"] = a.Arr.RootFolderName
+		body["defaultQualityProfileId"], body["defaultMetadataProfileId"] = quality, metadata
+		body["defaultMonitorOption"], body["defaultNewItemMonitorOption"] = "all", "all"
+		body["defaultTags"] = []any{}
+	}
+	if err := cl.do("POST", "/rootfolder", body, nil); err != nil {
 		return err
 	}
 	c.logf(a, "root folder %s added", want)
 	return nil
+}
+
+// firstID returns the ID of the first resource in a list endpoint.
+func (cl *arrClient) firstID(path string) (any, error) {
+	var list []map[string]any
+	if err := cl.do("GET", path, nil, &list); err != nil {
+		return nil, err
+	}
+	if len(list) == 0 {
+		return nil, fmt.Errorf("%s is empty", path)
+	}
+	return list[0]["id"], nil
 }
 
 func (cl *arrClient) ensureDownloadClient(c *Ctx, a, qb catalog.App) error {
@@ -126,10 +153,10 @@ func (cl *arrClient) ensureDownloadClient(c *Ctx, a, qb catalog.App) error {
 		}
 	}
 	// The category field is named after the media type: tvCategory in Sonarr,
-	// movieCategory in Radarr.
+	// movieCategory in Radarr, musicCategory in Lidarr.
 	if a.Arr.Category != "" {
 		set := false
-		for _, name := range []string{"tvCategory", "movieCategory", "category"} {
+		for _, name := range []string{"tvCategory", "movieCategory", "musicCategory", "category"} {
 			set = setField(res, name, a.Arr.Category) || set
 		}
 		if !set {

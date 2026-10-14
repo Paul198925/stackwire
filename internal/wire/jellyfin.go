@@ -117,6 +117,9 @@ func (j *jfClient) ensureLibraries(c *Ctx, a catalog.App) error {
 		have[l.Name] = true
 	}
 	for _, lib := range a.Jellyfin.Libraries {
+		if _, selected := c.app(lib.Requires); lib.Requires != "" && !selected {
+			continue
+		}
 		if have[lib.Name] {
 			c.logf(a, "library %s exists", lib.Name)
 			continue

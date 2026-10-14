@@ -1,0 +1,14 @@
+id: bazarr
+name: Bazarr
+category: media
+description: Subtitles for your movies and shows
+image: lscr.io/linuxserver/bazarr:latest
+port: 6767
+health: /api/system/ping
+secrets:
+  BAZARR_API_KEY: hex32
+volumes:
+  - config:/config
+  - data:/data
+todo: Choose your subtitle languages under Settings > Languages and add a subtitle provider.
+driver: bazarr

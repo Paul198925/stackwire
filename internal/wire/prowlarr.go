@@ -49,5 +49,51 @@ func (prowlarr) Wire(c *Ctx, a catalog.App) error {
 		}
 		c.logf(a, "application %s added", target.Name)
 	}
+	if fs, ok := c.app("flaresolverr"); ok {
+		return cl.ensureFlareSolverr(c, a, fs)
+	}
+	return nil
+}
+
+const flareSolverrTag = "flaresolverr"
+
+// ensureFlareSolverr registers FlareSolverr as an indexer proxy. Prowlarr
+// applies a proxy to the indexers that share a tag with it, so the user
+// only has to give an indexer the tag.
+func (cl *arrClient) ensureFlareSolverr(c *Ctx, a, fs catalog.App) error {
+	res, exists, err := cl.fromSchema("/indexerproxy", "FlareSolverr")
+	if err != nil {
+		return err
+	}
+	if exists {
+		c.logf(a, "FlareSolverr proxy exists")
+		return nil
+	}
+	var tags []map[string]any
+	if err := cl.do("GET", "/tag", nil, &tags); err != nil {
+		return err
+	}
+	var tagID any
+	for _, t := range tags {
+		if t["label"] == flareSolverrTag {
+			tagID = t["id"]
+		}
+	}
+	if tagID == nil {
+		var created map[string]any
+		if err := cl.do("POST", "/tag", map[string]any{"label": flareSolverrTag}, &created); err != nil {
+			return err
+		}
+		tagID = created["id"]
+	}
+	res["name"] = "FlareSolverr"
+	res["tags"] = []any{tagID}
+	if !setField(res, "host", fmt.Sprintf("http://%s:%d/", fs.ID, fs.Port)) {
+		return errors.New("indexer proxy schema has no field \"host\"")
+	}
+	if err := cl.do("POST", "/indexerproxy", res, nil); err != nil {
+		return err
+	}
+	c.logf(a, "FlareSolverr proxy added; give an indexer the tag %q to use it", flareSolverrTag)
 	return nil
 }

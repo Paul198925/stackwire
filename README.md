@@ -4,7 +4,21 @@ Self-hosted apps on Docker, installed **and connected to each other** with one c
 
 App stores like Umbrel or CasaOS start the containers and leave the rest to you: creating logins, copying API keys between apps, setting up folders. stackwire does that part too.
 
-Status: early. The first stack is media (Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent).
+Status: early. The first stack is media.
+
+## Apps
+
+| App | What it is | What stackwire sets up |
+|---|---|---|
+| Jellyfin | Media server | Admin account, libraries for movies, shows and (with Lidarr) music |
+| Sonarr, Radarr, Lidarr | Managers for shows, movies, music | Login, media folder, qBittorrent as download client, Jellyfin rescan after each import |
+| Prowlarr | Indexer manager | Login, Sonarr, Radarr and Lidarr registered so indexers sync to them |
+| qBittorrent | Download client | Login, download folders |
+| Bazarr | Subtitles | Login, connections to Sonarr and Radarr |
+| Seerr | Request page for family and friends | Sign-in through Jellyfin, libraries, Sonarr and Radarr as targets for requests |
+| FlareSolverr | Helper for indexers behind Cloudflare | Registered in Prowlarr under the tag `flaresolverr`; not reachable from outside |
+
+Apps that need another one bring it along: installing Seerr also installs Jellyfin.
 
 ## What `stackwire up` does
 
@@ -12,14 +26,12 @@ Status: early. The first stack is media (Jellyfin, Sonarr, Radarr, Prowlarr, qBi
 2. Starts the containers and waits until each one answers.
 3. Configures them through their APIs:
    - one admin login for every app
-   - Sonarr and Radarr: media folder, qBittorrent as download client, Jellyfin rescan after each import
-   - Prowlarr: Sonarr and Radarr registered, so indexers sync to both
-   - Jellyfin: setup wizard completed, Movies and Shows libraries added
+   - the connections between them, as listed under [Apps](#apps)
 4. With `--domain`: starts Caddy with HTTPS on `https://<app>.<domain>`.
 
 Every step checks the current state first. Running `up` or `wire` again changes nothing that is already set.
 
-The only thing left for you is adding your indexers in Prowlarr.
+What is left for you are the choices only you can make: your indexers in Prowlarr and, with Bazarr, your subtitle languages. `up` lists them at the end.
 
 ## Usage
 

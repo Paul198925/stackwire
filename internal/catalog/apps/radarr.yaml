@@ -22,6 +22,7 @@ arr:
   rootFolder: /data/media/movies
   category: movies
   prowlarrApp: Radarr
+  seerr: radarr
   counts:
     - label: Movies
       path: /movie

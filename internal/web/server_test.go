@@ -176,6 +176,33 @@ func TestLoginIsThrottled(t *testing.T) {
 	}
 }
 
+func TestInstallAddsRequirementsAndRemoveKeepsThem(t *testing.T) {
+	c, dir := setup(t)
+	login(t, c, dir)
+	if code, out := c.do("POST", "/api/apps/seerr/install", ""); code != 200 {
+		t.Fatalf("install seerr = %d %v", code, out)
+	}
+	cfg, _ := stack.Load(dir)
+	if strings.Join(cfg.Apps, ",") != "jellyfin,seerr" {
+		t.Errorf("apps = %v, want jellyfin installed along with seerr", cfg.Apps)
+	}
+	code, out := c.do("POST", "/api/apps/jellyfin/remove", "")
+	if code != http.StatusBadRequest || !strings.Contains(out["error"].(string), "seerr needs jellyfin") {
+		t.Errorf("removing a required app = %d %v", code, out)
+	}
+	// Restart and logs look the app up on its own, without its requirements.
+	if code, out := c.do("GET", "/api/apps/nope/logs", ""); code != http.StatusNotFound {
+		t.Errorf("logs of unknown app = %d %v", code, out)
+	}
+	if code, out := c.do("GET", "/api/apps/seerr/logs", ""); code == http.StatusNotFound {
+		t.Errorf("logs of seerr = %d %v", code, out)
+	}
+	c.do("POST", "/api/apps/seerr/remove", "")
+	if code, _ := c.do("POST", "/api/apps/jellyfin/remove", ""); code != 200 {
+		t.Errorf("removing jellyfin after seerr = %d", code)
+	}
+}
+
 func TestPasswordAndLogout(t *testing.T) {
 	c, dir := setup(t)
 	login(t, c, dir)

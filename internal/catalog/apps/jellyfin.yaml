@@ -22,3 +22,7 @@ jellyfin:
     - name: Shows
       type: tvshows
       path: /data/media/tv
+    - name: Music
+      type: music
+      path: /data/media/music
+      requires: lidarr

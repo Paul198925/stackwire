@@ -48,6 +48,8 @@ var drivers = []struct {
 	{"jellyfin", jellyfin{}},
 	{"arr", arr{}},
 	{"prowlarr", prowlarr{}},
+	{"bazarr", bazarr{}},
+	{"seerr", seerr{}},
 }
 
 func NewCtx(cfg *stack.Config, secrets *stack.Secrets, apps []catalog.App, out io.Writer) *Ctx {

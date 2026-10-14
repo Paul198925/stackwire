@@ -22,6 +22,7 @@ arr:
   rootFolder: /data/media/tv
   category: tv
   prowlarrApp: Sonarr
+  seerr: sonarr
   counts:
     - label: Series
       path: /series

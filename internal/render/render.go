@@ -41,6 +41,7 @@ type service struct {
 	Image       string            `yaml:"image"`
 	Restart     string            `yaml:"restart"`
 	Environment map[string]string `yaml:"environment,omitempty"`
+	User        string            `yaml:"user,omitempty"`
 	Ports       []string          `yaml:"ports,omitempty"`
 	Volumes     []volume          `yaml:"volumes,omitempty"`
 	ExtraHosts  []string          `yaml:"extra_hosts,omitempty"`
@@ -105,7 +106,16 @@ func Compose(cfg *stack.Config, apps []catalog.App) ([]byte, error) {
 			Image:       a.Image,
 			Restart:     "unless-stopped",
 			Environment: env,
-			Ports:       []string{fmt.Sprintf("%s%d:%d", bind, cfg.HostPort(a.ID, a.Port), a.Port)},
+		}
+		// An internal app is published on loopback only: the CLI needs to
+		// reach it, people and other machines do not.
+		appBind := bind
+		if a.Internal {
+			appBind = "127.0.0.1:"
+		}
+		s.Ports = []string{fmt.Sprintf("%s%d:%d", appBind, cfg.HostPort(a.ID, a.Port), a.Port)}
+		if a.RunAsUser {
+			s.User = fmt.Sprintf("%d:%d", cfg.PUID, cfg.PGID)
 		}
 		s.Ports = append(s.Ports, a.ExtraPorts...)
 		for _, v := range a.Volumes {
@@ -162,6 +172,9 @@ func Caddyfile(cfg *stack.Config, apps []catalog.App) string {
 	}
 	fmt.Fprintf(&b, "\n%s.%s {\n\treverse_proxy %s:%d\n}\n", UISubdomain, cfg.Domain, hostAlias, UIPort)
 	for _, a := range apps {
+		if a.Internal {
+			continue
+		}
 		fmt.Fprintf(&b, "\n%s.%s {\n\treverse_proxy %s:%d\n}\n", a.Subdomain, cfg.Domain, a.ID, a.Port)
 	}
 	return b.String()

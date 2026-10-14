@@ -377,7 +377,7 @@ function card(a) {
   const st = status(a), busy = state.job.running, running = a.container === "running";
   const actions = [];
   if (a.selected) {
-    if (running && a.healthy) actions.push(h("a", { class: "btn primary", href: appURL(a), target: "_blank", rel: "noopener" }, "Open"));
+    if (running && a.healthy && !a.internal) actions.push(h("a", { class: "btn primary", href: appURL(a), target: "_blank", rel: "noopener" }, "Open"));
     if (a.container) actions.push(h("button", { onclick: () => openLogs(a) }, "Logs"));
     if (running) actions.push(h("button", { disabled: busy, onclick: () => act(() => api("POST", `/api/apps/${a.id}/restart`)) }, "Restart"));
     actions.push(h("button", { class: "danger", disabled: busy, onclick: () => act(() => api("POST", `/api/apps/${a.id}/remove`)) }, a.container ? "Remove" : "Cancel"));
@@ -388,7 +388,7 @@ function card(a) {
   }
   return h("div", { class: "card" },
     h("div", { class: "top" }, h("h3", {}, a.name), st && h("span", { class: "pill " + st[1] }, st[0])),
-    h("p", {}, a.description),
+    h("p", {}, a.description, !a.selected && a.requires && a.requires.length ? h("small", {}, " Also installs " + a.requires.join(" and ") + ".") : null),
     h("div", { class: "actions" }, ...actions));
 }
 

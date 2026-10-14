@@ -1,0 +1,11 @@
+id: flaresolverr
+name: FlareSolverr
+category: media
+description: Helps Prowlarr reach indexers behind Cloudflare protection
+image: ghcr.io/flaresolverr/flaresolverr:latest
+port: 8191
+health: /health
+# Only Prowlarr talks to it. It has no login, so it is never published.
+internal: true
+requires:
+  - prowlarr
