@@ -20,6 +20,7 @@ import (
 	"stackwire/internal/ops"
 	"stackwire/internal/render"
 	"stackwire/internal/stack"
+	"stackwire/internal/storage"
 	"stackwire/internal/wire"
 )
 
@@ -48,6 +49,8 @@ type Server struct {
 	// Apply brings the running stack in line with its configuration.
 	// Replaced in tests.
 	Apply func(st *ops.Stack, out io.Writer) error
+	// CheckStorage tests a drive or share through Docker. Replaced in tests.
+	CheckStorage func(cfg *stack.Config, sec *stack.Secrets, st *stack.Storage, password string) (storage.CheckResult, error)
 
 	mu       sync.Mutex
 	sessions map[string]time.Time
@@ -61,7 +64,8 @@ type Server struct {
 
 func New(dir string) *Server {
 	apply := func(st *ops.Stack, out io.Writer) error { return ops.Up(st, out, 8*time.Minute) }
-	return &Server{dir: dir, Containers: composeStates, CheckProject: ops.CheckProject, Apply: apply, sessions: map[string]time.Time{}}
+	return &Server{dir: dir, Containers: composeStates, CheckProject: ops.CheckProject, Apply: apply,
+		CheckStorage: storage.Check, sessions: map[string]time.Time{}}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -88,6 +92,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/apps/{id}/restart", s.auth(s.handleRestart))
 	mux.HandleFunc("PUT /api/apps/{id}/settings", s.auth(s.handleAppSettings))
 	mux.HandleFunc("GET /api/apps/{id}/logs", s.auth(s.handleLogs))
+	mux.HandleFunc("GET /api/storage", s.auth(s.handleStorage))
+	mux.HandleFunc("PUT /api/storage", s.auth(s.handleStorageSave))
+	mux.HandleFunc("POST /api/storage/check", s.auth(s.handleStorageCheck))
 	return mux
 }
 

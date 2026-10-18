@@ -184,6 +184,27 @@ details summary { cursor: pointer; color: var(--muted); margin-bottom: 12px; }
 .nav-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-top: 16px; flex-wrap: wrap; }
 .links { display: grid; gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; }
 .links li { display: flex; align-items: center; gap: 10px; }
+/* storage */
+h3.sub { font-size: 15px; margin: 4px 0 10px; }
+.areas { display: grid; grid-template-columns: minmax(150px, max-content) minmax(170px, 1fr) minmax(120px, 1fr); gap: 10px 12px; align-items: center; margin-bottom: 22px; }
+.areas .where { grid-column: 2 / -1; margin-top: -6px; font-size: 12.5px; color: var(--muted); word-break: break-all; }
+.areas b { font-weight: 600; }
+.stg { display: flex; gap: 12px; align-items: flex-start; }
+.stg .kind { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; flex: none; background: linear-gradient(140deg, #3a3f5c, #23263a); }
+.stg .kind svg { width: 22px; height: 22px; }
+.stg .body { flex: 1; min-width: 0; }
+.stg .loc { color: var(--muted); font-size: 13px; word-break: break-all; }
+.stg .meter { margin-top: 8px; }
+.stg .space { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.drive-list { display: grid; gap: 8px; margin-bottom: 14px; }
+.drive-list .choice { align-items: center; }
+.seg { display: inline-flex; background: var(--field); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; margin-bottom: 16px; flex-wrap: wrap; }
+.seg label { padding: 6px 14px; border-radius: 999px; cursor: pointer; font-size: 14px; color: var(--muted); }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label:has(input:checked) { background: var(--text); color: #111; font-weight: 600; }
+.seg label:has(input:focus-visible) { outline: 2px solid var(--accent-2); }
+#stg-dialog { width: min(600px, 94vw); }
+@media (max-width: 640px) { .areas { grid-template-columns: 1fr; } .areas .where { grid-column: 1; } }
 @media (max-width: 560px) {
   nav button { width: 46px; height: 46px; border-radius: 14px; }
   .home-grid { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); }
@@ -354,6 +375,20 @@ details summary { cursor: pointer; color: var(--muted); margin-bottom: 12px; }
         <div class="row"><button class="primary" type="submit">Save settings</button><span id="settings-msg" class="msg" role="status"></span></div>
       </form>
 
+      <h2>Storage</h2>
+      <div class="panel">
+        <p style="margin-top:0" class="msg">Put your media, photos or documents on a bigger drive or on your NAS. Changes take effect when you apply them. Files already there are not moved.</p>
+        <h3 class="sub">What goes where</h3>
+        <div id="stg-areas" class="areas"></div>
+        <h3 class="sub">Drives and shares</h3>
+        <div id="stg-list" class="grid" style="margin-bottom:14px"></div>
+        <div class="row">
+          <button type="button" id="stg-add-drive">+ Add a drive</button>
+          <button type="button" id="stg-add-share">+ Add a network share</button>
+        </div>
+        <div class="row" style="margin-top:18px"><button class="primary" type="button" id="stg-save" disabled>Save storage</button><span id="stg-msg" class="msg" role="status"></span></div>
+      </div>
+
       <h2>Login for your apps</h2>
       <div class="panel">
         <p style="margin-top:0">Every app and this page use the same login.</p>
@@ -382,6 +417,43 @@ details summary { cursor: pointer; color: var(--muted); margin-bottom: 12px; }
     <p class="msg" style="margin-top:0">Saved settings take effect when you apply the changes; the app is then restarted.</p>
     <div class="row"><button class="primary" type="submit">Save</button><button type="button" id="app-settings-cancel">Cancel</button>
       <span id="app-settings-msg" class="msg bad" role="alert"></span></div>
+  </form>
+</dialog>
+
+<dialog id="stg-dialog">
+  <form id="stg-form" method="dialog" novalidate>
+    <div class="top"><h3 id="stg-title">Add storage</h3></div>
+    <div class="seg" role="radiogroup" aria-label="Kind of storage">
+      <label><input type="radio" name="stg-type" value="folder" checked>Drive or folder</label>
+      <label><input type="radio" name="stg-type" value="smb">SMB share</label>
+      <label><input type="radio" name="stg-type" value="nfs">NFS share</label>
+    </div>
+    <div class="field"><label for="stg-name">Name</label><input id="stg-name" type="text" placeholder="e.g. USB disk or NAS" autocomplete="off"></div>
+    <div data-kind="folder">
+      <div id="stg-drives" class="drive-list"></div>
+      <div class="field"><label for="stg-path">Path on this machine</label><input id="stg-path" type="text" placeholder="/mnt/usb" spellcheck="false">
+        <small>Where the drive is mounted. stackwire refuses to start the apps while it is not there, so nothing lands on the system disk by accident.</small></div>
+    </div>
+    <div data-kind="smb" hidden>
+      <div class="field"><label for="stg-smb-server">Server</label><input id="stg-smb-server" type="text" placeholder="192.168.1.10 or nas.local" spellcheck="false"></div>
+      <div class="field"><label for="stg-smb-share">Share</label><input id="stg-smb-share" type="text" placeholder="media" spellcheck="false">
+        <small>The name of the shared folder, as in <code>\\server\share</code>.</small></div>
+      <div class="field"><label for="stg-smb-user">User</label><input id="stg-smb-user" type="text" autocomplete="off" spellcheck="false">
+        <small>Leave empty for a guest share.</small></div>
+      <div class="field"><label for="stg-smb-pass">Password</label><input id="stg-smb-pass" type="password" autocomplete="new-password">
+        <small id="stg-pass-hint">Stored in the stack's <code>.env</code> file, never shown again.</small></div>
+    </div>
+    <div data-kind="nfs" hidden>
+      <div class="field"><label for="stg-nfs-server">Server</label><input id="stg-nfs-server" type="text" placeholder="192.168.1.10" spellcheck="false"></div>
+      <div class="field"><label for="stg-nfs-share">Export</label><input id="stg-nfs-share" type="text" placeholder="/volume1/media" spellcheck="false">
+        <small>The exported path. The server must allow this machine's address, with read and write.</small></div>
+    </div>
+    <div id="stg-check-result" class="banner" hidden></div>
+    <div class="nav-row">
+      <button type="button" id="stg-check">Check connection</button>
+      <span id="stg-dialog-msg" class="msg bad" role="alert"></span>
+      <div class="row"><button type="button" id="stg-cancel">Cancel</button><button type="submit" class="primary" id="stg-ok">Add</button></div>
+    </div>
   </form>
 </dialog>
 
@@ -445,6 +517,7 @@ function setView(v) {
   for (const b of document.querySelectorAll("nav button")) b.setAttribute("aria-current", b.dataset.view === v ? "page" : "false");
   for (const name of ["dashboard", "apps", "settings", "activity"]) $("view-" + name).hidden = name !== v;
   if (v === "dashboard") refreshDashboard();
+  if (v === "settings" && !stgDirty) loadStorage();
 }
 
 // --- dashboard ---
@@ -741,6 +814,214 @@ $("app-settings-form").addEventListener("submit", async e => {
 
 $("logs-refresh").addEventListener("click", loadLogs);
 $("logs-close").addEventListener("click", () => $("logs").close());
+
+// --- storage ---
+
+let stg = null, stgDirty = false, stgPasswords = {}, stgEditing = -1, stgChecks = {};
+const areaFolders = { media: "stackwire", downloads: "downloads", photos: "photos", documents: "documents", sync: "sync" };
+const kindIcons = {
+  folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M7 14h.01M11 14h6"/></svg>',
+  smb: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6.5h.01M7 17.5h.01"/></svg>',
+};
+kindIcons.nfs = kindIcons.smb;
+const kindNames = { folder: "Drive", smb: "SMB share", nfs: "NFS share" };
+
+function svgEl(markup) { const t = document.createElement("template"); t.innerHTML = markup; return t.content.firstChild; }
+
+async function loadStorage() {
+  try { stg = await api("GET", "/api/storage"); stgPasswords = {}; stgDirty = false; renderStorage(); }
+  catch (err) { $("stg-msg").className = "msg bad"; $("stg-msg").textContent = err.message; }
+}
+
+function stgWhere(s, folder) {
+  const f = folder ? "/" + folder : "";
+  if (s.type === "folder") return s.path.replace(/[\\/]+$/, "") + f;
+  if (s.type === "smb") return `\\\\${s.server}\\${s.share}${f.replace(/\//g, "\\")}`;
+  return `${s.server}:${s.share.replace(/\/+$/, "")}${f}`;
+}
+
+function setStgDirty() { stgDirty = true; $("stg-save").disabled = false; $("stg-msg").className = "msg"; $("stg-msg").textContent = "Not saved yet."; }
+
+function renderStorage() {
+  const areas = stg.areas, list = stg.storage;
+  const dataPath = sub => stg.dataDir.replace(/[\\/]+$/, "") + (sub ? "/" + sub : "");
+  // Where an area ends up; downloads without a place follow the media.
+  const placeText = a => {
+    if (a.id === "downloads" && !a.storage) {
+      const m = areas.find(x => x.id === "media");
+      return m.storage && m.storage !== "data" ? placeText({ ...m, id: "media" }) + "  (together with the media)" : dataPath("") + "  (together with the media)";
+    }
+    const s = list.find(x => x.id === a.storage);
+    if (s) return stgWhere(s, a.folder);
+    return dataPath(a.id === "media" || a.id === "downloads" ? "" : a.id);
+  };
+  const splitNote = h("p", { class: "msg", style: "grid-column:1/-1;margin:0 0 4px;font-size:13px" });
+  const updateSplit = () => {
+    const m = areas.find(x => x.id === "media"), d = areas.find(x => x.id === "downloads");
+    const norm = p => (!p.storage || p.storage === "data") ? "data|" : p.storage + "|" + (p.folder || "");
+    const split = d && d.storage && norm(d) !== norm(m);
+    splitNote.hidden = !split;
+    splitNote.textContent = "Downloads and media are apart: finished downloads are copied into the library instead of moved instantly. Torrents keep seeding from the downloads folder until they are removed.";
+  };
+  const rows = [];
+  const refreshWhere = [];
+  for (const a of areas) {
+    const isDl = a.id === "downloads";
+    const sel = h("select", { "aria-label": a.name + ": storage" },
+      ...(isDl ? [h("option", { value: "" }, "Together with media"), h("option", { value: "data", selected: a.storage === "data" }, "Data folder")]
+        : [h("option", { value: "" }, "Data folder")]),
+      ...list.map(s => h("option", { value: s.id, selected: s.id === a.storage }, s.name || s.id)));
+    const onStorage = () => a.storage && a.storage !== "data";
+    const folder = h("input", { type: "text", value: a.folder, placeholder: "Folder", "aria-label": a.name + ": folder", spellcheck: "false", disabled: !onStorage() });
+    const where = h("div", { class: "where" });
+    const update = () => { where.textContent = "→ " + placeText(a); };
+    refreshWhere.push(update);
+    sel.addEventListener("change", () => {
+      a.storage = sel.value; folder.disabled = !onStorage();
+      if (onStorage() && !a.folder) { a.folder = areaFolders[a.id] || ""; folder.value = a.folder; }
+      if (!onStorage()) { a.folder = ""; folder.value = ""; }
+      refreshWhere.forEach(f => f()); updateSplit(); setStgDirty();
+    });
+    folder.addEventListener("input", () => { a.folder = folder.value.trim(); refreshWhere.forEach(f => f()); updateSplit(); setStgDirty(); });
+    update();
+    rows.push(h("b", {}, a.name), sel, folder, where);
+    if (isDl) rows.push(splitNote);
+  }
+  updateSplit();
+  $("stg-areas").replaceChildren(...rows);
+
+  $("stg-list").replaceChildren(...(list.length ? list.map((s, i) => {
+    const used = areas.filter(a => a.storage === s.id).map(a => a.name);
+    const check = stgChecks[s.id];
+    const total = check && check.total || s.total, free = check && check.total ? check.free : s.free;
+    const kids = [h("h3", {}, s.name || s.id), h("div", { class: "loc" }, kindNames[s.type] + " · " + stgWhere(s, ""))];
+    if (s.type === "folder" && !s.present) kids.push(h("div", { class: "pill bad", style: "display:inline-block;margin-top:6px" }, "Not connected"));
+    if (total) {
+      const usedFrac = (total - free) / total, [cls] = level(usedFrac);
+      kids.push(h("div", { class: "meter " + cls }, h("span", { style: `width:${(usedFrac * 100).toFixed(1)}%` })),
+        h("div", { class: "space" }, `${fmtBytes(free)} free of ${fmtBytes(total)}`));
+    }
+    if (check && check.error) kids.push(h("div", { class: "space", style: "color:var(--bad)" }, check.error));
+    else if (check && check.ok) kids.push(h("div", { class: "space", style: "color:var(--ok)" }, "Connected, the apps can write here"));
+    kids.push(h("div", { class: "space" }, used.length ? "Holds: " + used.join(", ") : "Not used yet"));
+    kids.push(h("div", { class: "actions", style: "margin-top:8px" },
+      h("button", { type: "button", onclick: () => checkStorage(s) }, check && check.running ? "Checking…" : "Check"),
+      h("button", { type: "button", onclick: () => openStorageDialog(i) }, "Edit"),
+      h("button", { type: "button", class: "danger", disabled: used.length > 0, title: used.length ? "Move its areas elsewhere first" : "",
+        onclick: () => { list.splice(i, 1); delete stgPasswords[s.id]; renderStorage(); setStgDirty(); } }, "Remove")));
+    const kind = h("span", { class: "kind" }); kind.append(svgEl(kindIcons[s.type]));
+    return h("div", { class: "card" }, h("div", { class: "stg" }, kind, h("div", { class: "body" }, ...kids)));
+  }) : [h("p", { class: "empty" }, "Only the data folder so far. Add a drive or a network share to put areas there.")]));
+  $("stg-save").disabled = !stgDirty;
+}
+
+async function checkStorage(s) {
+  stgChecks[s.id] = { running: true }; renderStorage();
+  try {
+    const res = await api("POST", "/api/storage/check", { storage: s, password: stgPasswords[s.id] || "" });
+    stgChecks[s.id] = { ok: true, ...res };
+  } catch (err) { stgChecks[s.id] = { error: err.message }; }
+  renderStorage();
+}
+
+function storageType() { return document.querySelector('input[name="stg-type"]:checked').value; }
+function showStorageKind() {
+  for (const el of document.querySelectorAll("#stg-form [data-kind]")) el.hidden = el.dataset.kind !== storageType();
+  $("stg-check-result").hidden = true; $("stg-dialog-msg").textContent = "";
+}
+for (const r of document.querySelectorAll('input[name="stg-type"]')) r.addEventListener("change", showStorageKind);
+
+function openStorageDialog(index, kind) {
+  stgEditing = index;
+  const s = index >= 0 ? stg.storage[index] : { type: kind || "folder", name: "", path: "", server: "", share: "", user: "" };
+  $("stg-title").textContent = index >= 0 ? "Edit " + (s.name || s.id) : kind === "folder" ? "Add a drive" : "Add a network share";
+  $("stg-ok").textContent = index >= 0 ? "Done" : "Add";
+  for (const r of document.querySelectorAll('input[name="stg-type"]')) r.checked = r.value === s.type;
+  $("stg-name").value = s.name || "";
+  $("stg-path").value = s.type === "folder" ? s.path : "";
+  $("stg-smb-server").value = s.type === "smb" ? s.server : ""; $("stg-smb-share").value = s.type === "smb" ? s.share : "";
+  $("stg-smb-user").value = s.type === "smb" ? s.user || "" : ""; $("stg-smb-pass").value = "";
+  $("stg-pass-hint").textContent = s.hasPassword ? "A password is stored. Leave empty to keep it." : "Stored in the stack's .env file, never shown again.";
+  $("stg-nfs-server").value = s.type === "nfs" ? s.server : ""; $("stg-nfs-share").value = s.type === "nfs" ? s.share : "";
+  const drives = stg.drives.filter(d => d.path);
+  $("stg-drives").replaceChildren(...(drives.length ? drives.map(d => {
+    const radio = h("input", { type: "radio", name: "stg-drive", value: d.path });
+    radio.addEventListener("change", () => { $("stg-path").value = d.path; if (!$("stg-name").value) $("stg-name").value = d.name; });
+    return h("label", { class: "choice" }, radio, h("div", {}, h("b", {}, d.name),
+      h("span", {}, [d.path, d.fs, d.size ? fmtBytes(d.free) + " free of " + fmtBytes(d.size) : ""].filter(Boolean).join(" · "))));
+  }) : [h("p", { class: "msg", style: "margin:0" }, stg.driveError ? "Could not list the drives: " + stg.driveError : "No other drives found. Enter the path below.")]),
+    ...stg.drives.filter(d => !d.path).map(d => h("p", { class: "msg", style: "margin:0;font-size:13px" },
+      `${d.name} (${d.device}, ${fmtBytes(d.size)}) is connected but not mounted. Mount it first, e.g. sudo mkdir -p /mnt/${d.name.replace(/\W+/g, "").toLowerCase() || "usb"} && sudo mount ${d.device} /mnt/${d.name.replace(/\W+/g, "").toLowerCase() || "usb"}`)));
+  showStorageKind();
+  $("stg-dialog").showModal();
+}
+
+// Reads the dialog into a storage, keeping the ID of the one being edited.
+function storageFromDialog() {
+  const type = storageType(), name = $("stg-name").value.trim();
+  const s = { type, name };
+  if (type === "folder") s.path = $("stg-path").value.trim();
+  if (type === "smb") { s.server = $("stg-smb-server").value.trim(); s.share = $("stg-smb-share").value.trim().replace(/^[\\/]+/, ""); s.user = $("stg-smb-user").value.trim(); }
+  if (type === "nfs") { s.server = $("stg-nfs-server").value.trim(); s.share = $("stg-nfs-share").value.trim(); }
+  if (stgEditing >= 0) { s.id = stg.storage[stgEditing].id; s.hasPassword = stg.storage[stgEditing].hasPassword; }
+  else {
+    const base = (name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24)) || (type === "folder" ? "drive" : "nas");
+    let id = base, n = 2;
+    while (stg.storage.some(x => x.id === id)) id = base + "-" + n++;
+    s.id = id;
+  }
+  return s;
+}
+
+function storageDialogError(s) {
+  if (s.type === "folder" && !s.path) return "Choose a drive or enter its path.";
+  if (s.type !== "folder" && !s.server) return "Enter the server's address.";
+  if (s.type !== "folder" && !s.share) return s.type === "smb" ? "Enter the share's name." : "Enter the exported path.";
+  if (s.type === "smb" && $("stg-smb-pass").value.includes(",")) return "The password must not contain a comma.";
+  return "";
+}
+
+$("stg-check").addEventListener("click", async () => {
+  const s = storageFromDialog(), err = storageDialogError(s), box = $("stg-check-result");
+  if (err) { $("stg-dialog-msg").textContent = err; return; }
+  $("stg-dialog-msg").textContent = "";
+  box.hidden = false; box.className = "banner"; box.replaceChildren(h("span", { class: "spinner" }), h("p", {}, "Connecting…"));
+  $("stg-check").disabled = true;
+  try {
+    const res = await api("POST", "/api/storage/check", { storage: s, password: s.type === "smb" ? $("stg-smb-pass").value || stgPasswords[s.id] || "" : "" });
+    box.className = "banner"; box.replaceChildren(h("p", {}, "Connected. The apps can write here" + (res.total ? `, ${fmtBytes(res.free)} free of ${fmtBytes(res.total)}.` : ".")));
+  } catch (e) { box.className = "banner bad"; box.replaceChildren(h("p", {}, e.message)); }
+  $("stg-check").disabled = false;
+});
+
+$("stg-form").addEventListener("submit", e => {
+  e.preventDefault();
+  const s = storageFromDialog(), err = storageDialogError(s);
+  if (err) { $("stg-dialog-msg").textContent = err; return; }
+  if (s.type === "smb" && $("stg-smb-pass").value) { stgPasswords[s.id] = $("stg-smb-pass").value; s.hasPassword = true; }
+  if (stgEditing >= 0) stg.storage[stgEditing] = s; else stg.storage.push(s);
+  delete stgChecks[s.id];
+  $("stg-dialog").close();
+  renderStorage(); setStgDirty();
+});
+$("stg-cancel").addEventListener("click", () => $("stg-dialog").close());
+$("stg-add-drive").addEventListener("click", () => openStorageDialog(-1, "folder"));
+$("stg-add-share").addEventListener("click", () => openStorageDialog(-1, "smb"));
+
+$("stg-save").addEventListener("click", async () => {
+  const msg = $("stg-msg");
+  const areas = Object.fromEntries(stg.areas.filter(a => a.storage).map(a => [a.id, { storage: a.storage, folder: a.folder }]));
+  const storage = stg.storage.map(({ id, name, type, path, server, share, user }) => ({ id, name, type, path, server, share, user }));
+  $("stg-save").disabled = true;
+  try {
+    await api("PUT", "/api/storage", { storage, areas, passwords: stgPasswords });
+    msg.className = "msg"; msg.textContent = "Saved. Apply the changes to use it.";
+    stgDirty = false;
+    await loadStorage();
+    msg.textContent = "Saved. Apply the changes to use it.";
+    refresh();
+  } catch (err) { msg.className = "msg bad"; msg.textContent = err.message; $("stg-save").disabled = false; }
+});
 
 // --- first-visit setup ---
 

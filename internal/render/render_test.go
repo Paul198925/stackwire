@@ -3,6 +3,7 @@ package render
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -265,5 +266,101 @@ func TestWriteCreatesLayout(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(cfg.Dir, p)); err != nil {
 			t.Errorf("missing %s", p)
 		}
+	}
+}
+
+func TestComposeWithStorage(t *testing.T) {
+	cfg, apps := mediaStack(t)
+	usb := t.TempDir()
+	cfg.Storage = []stack.Storage{
+		{ID: "usb", Type: stack.StorageFolder, Path: usb},
+		{ID: "nas", Type: stack.StorageSMB, Server: "nas.local", Share: "media", User: "paul"},
+	}
+	cfg.Areas = map[string]stack.Place{"media": {Storage: "nas", Folder: "stackwire"}}
+	cf := parse(t, cfg, apps)
+	vol := cfg.VolumeName(&cfg.Storage[1])
+	v := cf.Services["sonarr"].Volumes[1]
+	if v.Type != "volume" || v.Source != vol || v.Volume == nil || v.Volume.Subpath != "stackwire" || v.Target != "/data" {
+		t.Errorf("sonarr data volume = %+v", v)
+	}
+	if d := cf.Volumes[vol]; !d.External || d.Name != vol {
+		t.Errorf("volume declaration = %+v", d)
+	}
+	if dirs := NetworkDirs(cfg, apps)[vol]; !slices.Contains(dirs, "stackwire/media/tv") || !slices.Contains(dirs, "stackwire") {
+		t.Errorf("network dirs = %v", dirs)
+	}
+
+	// Media on the drive: bind mounts below its path.
+	cfg.Areas = map[string]stack.Place{"media": {Storage: "usb", Folder: "stack"}}
+	cf = parse(t, cfg, apps)
+	if got := cf.Services["sonarr"].Volumes[1].Source; got != filepath.ToSlash(usb)+"/stack" && got != usb+"/stack" {
+		t.Errorf("sonarr data on the drive = %s", got)
+	}
+	if err := Write(cfg, apps); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(usb, "stack", "media", "tv")); err != nil {
+		t.Errorf("folders on the drive: %v", err)
+	}
+
+	// A drive that is not connected must not be filled in on the system disk.
+	cfg.Storage[0].Path = filepath.Join(usb, "not-mounted")
+	if err := Write(cfg, apps); err == nil || !strings.Contains(err.Error(), "not there") {
+		t.Errorf("missing drive: %v", err)
+	}
+	if _, err := os.Stat(cfg.Storage[0].Path); err == nil {
+		t.Error("folders were created where the drive should be")
+	}
+}
+
+func TestComposeDownloadsApart(t *testing.T) {
+	cfg, apps := mediaStack(t)
+	cfg.Storage = []stack.Storage{{ID: "nas", Type: stack.StorageSMB, Server: "nas.local", Share: "media", User: "paul"}}
+	// Media on the NAS, downloads stay in the data folder.
+	cfg.Areas = map[string]stack.Place{"media": {Storage: "nas", Folder: "stackwire"}, "downloads": {Storage: stack.DataFolder}}
+	if !cfg.SplitDownloads() {
+		t.Fatal("not split")
+	}
+	cf := parse(t, cfg, apps)
+	got := map[string]string{}
+	for _, v := range cf.Services["sonarr"].Volumes {
+		src := v.Source
+		if v.Volume != nil {
+			src += ":" + v.Volume.Subpath
+		}
+		got[v.Target] = v.Type + " " + src
+	}
+	vol := cfg.VolumeName(&cfg.Storage[0])
+	want := map[string]string{
+		"/data/media":    "volume " + vol + ":stackwire/media",
+		"/data/torrents": "bind ./data/torrents",
+		"/data/usenet":   "bind ./data/usenet",
+	}
+	for target, w := range want {
+		if got[target] != w {
+			t.Errorf("%s = %q, want %q", target, got[target], w)
+		}
+	}
+	if _, whole := got["/data"]; whole {
+		t.Error("the whole data folder is still mounted")
+	}
+	// Apps that mount single folders are unaffected.
+	if err := Write(cfg, apps); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(cfg.Dir, "data", "usenet")); err != nil {
+		t.Errorf("download folder not created: %v", err)
+	}
+	if dirs := NetworkDirs(cfg, apps)[vol]; !slices.Contains(dirs, "stackwire/media") || slices.Contains(dirs, "stackwire/torrents") {
+		t.Errorf("network dirs = %v", dirs)
+	}
+
+	// Without a place of their own, downloads follow the media: one mount.
+	delete(cfg.Areas, "downloads")
+	if cfg.SplitDownloads() {
+		t.Error("split without a place for downloads")
+	}
+	if n := len(parse(t, cfg, apps).Services["sonarr"].Volumes); n != 2 {
+		t.Errorf("sonarr has %d volumes, want config and data", n)
 	}
 }

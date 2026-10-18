@@ -15,6 +15,7 @@ import (
 	"stackwire/internal/dockerx"
 	"stackwire/internal/ops"
 	"stackwire/internal/render"
+	"stackwire/internal/storage"
 	"stackwire/internal/wire"
 )
 
@@ -103,7 +104,7 @@ func (s *Server) measure() (*dashboardResponse, error) {
 	resp.Disk.Path = st.Cfg.Abs(st.Cfg.DataDir)
 	// The data folder does not exist before the first apply; its parent is on the same disk.
 	for _, p := range []string{resp.Disk.Path, st.Cfg.Dir} {
-		if total, free, err := diskSpace(p); err == nil {
+		if total, free, err := storage.Space(p); err == nil {
 			resp.Disk.Total, resp.Disk.Free = total, free
 			break
 		}

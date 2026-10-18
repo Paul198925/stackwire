@@ -1,11 +1,11 @@
 //go:build !windows
 
-package web
+package storage
 
 import "syscall"
 
-// diskSpace returns the size and the free space of the filesystem that holds path.
-func diskSpace(path string) (total, free uint64, err error) {
+// Space returns the size and the free space of the filesystem that holds path.
+func Space(path string) (total, free uint64, err error) {
 	var st syscall.Statfs_t
 	if err := syscall.Statfs(path, &st); err != nil {
 		return 0, 0, err

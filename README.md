@@ -120,7 +120,7 @@ On Linux the proxy container reaches the page through the Docker bridge. A host 
 | `.env` | Generated secrets, including `ADMIN_PASSWORD`. Keep private. |
 | `docker-compose.yml`, `caddy/` | Generated. Overwritten on every run. |
 | `config/<app>/` | Each app's own configuration. |
-| `data/` | `media/{movies,tv}` and `torrents/{movies,tv}` on one mount, so imports are hardlinks instead of copies. |
+| `data/` | `media/`, `torrents/`, `usenet/`, `photos/`, `documents/`, `sync/`, unless they are on [other storage](#storage). Media and downloads share one mount, so imports are hardlinks instead of copies. |
 
 Some apps have settings of their own, such as the document language of Paperless-ngx. Change them in the web interface (Settings on the app's card) or in `stackwire.yaml`:
 
@@ -135,6 +135,36 @@ If a port is taken, override it in `stackwire.yaml`:
 ```yaml
 ports:
   qbittorrent: 8081
+```
+
+## Storage
+
+Everything starts in the data folder. Under Settings > Storage you can put parts of it elsewhere: on a USB disk or a second drive of the server, or on a share of your NAS (SMB or NFS). stackwire lists the drives it finds and checks a storage before you use it: it mounts it the way the apps will and writes a test file as their user, so a wrong password, a missing share or a drive the apps may not write to shows up right away.
+
+Each area can live in its own place:
+
+| Area | Folders | Used by |
+|---|---|---|
+| Media | `media/` | Jellyfin, Sonarr, Radarr, Lidarr, Navidrome, Audiobookshelf |
+| Downloads | `torrents/`, `usenet/` | qBittorrent, SABnzbd |
+| Photos | `photos/` | Immich |
+| Documents | `documents/` | Paperless-ngx |
+| Synced folders | `sync/` | Syncthing |
+
+Downloads go with the media unless you give them a place of their own. Together, Sonarr and Radarr move finished downloads into the library instantly (a hardlink). Apart, for example downloads on a fast local disk and the library on the NAS, they copy them; torrents keep seeding from the downloads folder until they are removed.
+
+Shares are mounted by Docker, so nothing needs to be set up on the server, and their passwords stay in `.env`. If a drive is not connected, stackwire refuses to start the apps instead of quietly filling the system disk where the drive should be. Moving an area does not move the files that are already there.
+
+```yaml
+storage:
+  - id: nas
+    type: smb            # or nfs, or folder with path: /mnt/usb
+    server: 192.168.1.10
+    share: media
+    user: paul           # password: STORAGE_NAS_PASSWORD in .env
+areas:
+  media: {storage: nas, folder: stackwire}
+  downloads: {storage: data}   # the data folder
 ```
 
 ## Adding an app

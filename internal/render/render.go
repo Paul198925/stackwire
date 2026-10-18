@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,9 +33,17 @@ const (
 )
 
 type composeFile struct {
-	Name     string              `yaml:"name"`
-	Services map[string]service  `yaml:"services"`
-	Volumes  map[string]struct{} `yaml:"volumes,omitempty"`
+	Name     string               `yaml:"name"`
+	Services map[string]service   `yaml:"services"`
+	Volumes  map[string]volumeDef `yaml:"volumes,omitempty"`
+}
+
+// volumeDef declares a Docker volume. Network storage volumes are created
+// by stackwire before the apps start (see storage.Prepare), so compose
+// only refers to them.
+type volumeDef struct {
+	Name     string `yaml:"name,omitempty"`
+	External bool   `yaml:"external,omitempty"`
 }
 
 type service struct {
@@ -54,12 +63,18 @@ type volume struct {
 	Source   string `yaml:"source"`
 	Target   string `yaml:"target"`
 	ReadOnly bool   `yaml:"read_only,omitempty"`
+	Volume   *struct {
+		Subpath string `yaml:"subpath"`
+	} `yaml:"volume,omitempty"`
 }
 
 // Write generates all files for the stack and creates its directories.
 func Write(cfg *stack.Config, apps []catalog.App) error {
 	b, err := Compose(cfg, apps)
 	if err != nil {
+		return err
+	}
+	if err := checkStorage(cfg); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(cfg.Dir, ComposeFile), b, 0o644); err != nil {
@@ -146,7 +161,20 @@ func Compose(cfg *stack.Config, apps []catalog.App) ([]byte, error) {
 		cf.Services[a.ID] = s
 	}
 	if len(named) > 0 {
-		cf.Volumes = named
+		cf.Volumes = map[string]volumeDef{}
+		for n := range named {
+			cf.Volumes[n] = volumeDef{}
+		}
+		for _, s := range cfg.Storage {
+			if s.Type == stack.StorageFolder {
+				continue
+			}
+			if n := cfg.VolumeName(&s); cf.Volumes[n] == (volumeDef{}) {
+				if _, used := named[n]; used {
+					cf.Volumes[n] = volumeDef{Name: n, External: true}
+				}
+			}
+		}
 	}
 	if cfg.Domain != "" {
 		var deps []string
@@ -167,9 +195,9 @@ func Compose(cfg *stack.Config, apps []catalog.App) ([]byte, error) {
 			DependsOn:  deps,
 		}
 		if cf.Volumes == nil {
-			cf.Volumes = map[string]struct{}{}
+			cf.Volumes = map[string]volumeDef{}
 		}
-		cf.Volumes["caddy_data"], cf.Volumes["caddy_config"] = struct{}{}, struct{}{}
+		cf.Volumes["caddy_data"], cf.Volumes["caddy_config"] = volumeDef{}, volumeDef{}
 	}
 	b, err := yaml.Marshal(cf)
 	if err != nil {
@@ -239,7 +267,23 @@ func volumes(cfg *stack.Config, appID string, specs []string, named map[string]s
 		case "config":
 			v = volume{Type: "bind", Source: joinSub(composePath(cfg.ConfigDir)+"/"+appID, sub)}
 		case "data":
-			v = volume{Type: "bind", Source: joinSub(composePath(cfg.DataDir), sub)}
+			// The whole data folder holds media and downloads. Kept apart,
+			// each is mounted on its own at the same place inside.
+			if sub == "" && cfg.SplitDownloads() {
+				for _, part := range append([]string{"media"}, stack.DownloadFolders...) {
+					pv := dataVolume(cfg, part)
+					if pv.Type == "volume" {
+						named[pv.Source] = struct{}{}
+					}
+					pv.Target, pv.ReadOnly = target+"/"+part, readOnly
+					out = append(out, pv)
+				}
+				continue
+			}
+			v = dataVolume(cfg, sub)
+			if v.Type == "volume" {
+				named[v.Source] = struct{}{}
+			}
 		case "volume":
 			if sub == "" {
 				return nil, fmt.Errorf("volume %q needs a name", spec)
@@ -255,7 +299,29 @@ func volumes(cfg *stack.Config, appID string, specs []string, named map[string]s
 	return out, nil
 }
 
+// dataVolume mounts a folder below the data folder from wherever its area
+// lives: the data folder, a drive, or a network share.
+func dataVolume(cfg *stack.Config, sub string) volume {
+	loc := cfg.Locate(sub)
+	switch {
+	case loc.Storage == nil:
+		return volume{Type: "bind", Source: joinSub(composePath(loc.Root), loc.Rel)}
+	case loc.Storage.Type == stack.StorageFolder:
+		return volume{Type: "bind", Source: joinSub(loc.Root, loc.Rel)}
+	}
+	v := volume{Type: "volume", Source: cfg.VolumeName(loc.Storage)}
+	if p := joinSub(loc.Root, loc.Rel); p != "" {
+		v.Volume = &struct {
+			Subpath string `yaml:"subpath"`
+		}{strings.Trim(p, "/")}
+	}
+	return v
+}
+
 func joinSub(base, sub string) string {
+	if base == "" {
+		return sub
+	}
 	if sub == "" {
 		return base
 	}
@@ -394,7 +460,9 @@ func FixOwnership(cfg *stack.Config, apps []catalog.App) error {
 		return err
 	}
 	for _, d := range dataDirs(cfg, apps) {
-		if err := os.Chown(d, cfg.PUID, cfg.PGID); err != nil {
+		// Drives with FAT, exFAT or NTFS have no owners; their mount options
+		// decide who may write, and the storage check tells if the apps can.
+		if err := os.Chown(d.Path, cfg.PUID, cfg.PGID); err != nil && !d.External {
 			return err
 		}
 	}
@@ -402,7 +470,10 @@ func FixOwnership(cfg *stack.Config, apps []catalog.App) error {
 }
 
 func dirs(cfg *stack.Config, apps []catalog.App) []string {
-	out := dataDirs(cfg, apps)
+	var out []string
+	for _, d := range dataDirs(cfg, apps) {
+		out = append(out, d.Path)
+	}
 	for _, a := range apps {
 		base := filepath.Join(cfg.Abs(cfg.ConfigDir), a.ID)
 		out = append(out, base)
@@ -430,24 +501,121 @@ func volumeSubdirs(a catalog.App, kind string) []string {
 	return out
 }
 
-func dataDirs(cfg *stack.Config, apps []catalog.App) []string {
-	root := cfg.Abs(cfg.DataDir)
-	seen := map[string]bool{root: true}
-	out := []string{root}
+// dataSubs lists every folder below the data folder that the apps use,
+// with all their parents, "" (the media area itself) first.
+func dataSubs(cfg *stack.Config, apps []catalog.App) []string {
+	seen := map[string]bool{"": true}
+	out := []string{""}
+	add := func(d string) {
+		p := ""
+		for _, part := range strings.Split(filepath.ToSlash(d), "/") {
+			p = joinSub(p, part)
+			if !seen[p] {
+				seen[p] = true
+				out = append(out, p)
+			}
+		}
+	}
 	for _, a := range apps {
 		for _, d := range append(append([]string{}, a.DataDirs...), volumeSubdirs(a, "data")...) {
-			// Add each parent as well so ownership is fixed along the whole path.
-			p := root
-			for _, part := range strings.Split(filepath.ToSlash(d), "/") {
-				p = filepath.Join(p, part)
-				if !seen[p] {
-					seen[p] = true
-					out = append(out, p)
-				}
+			add(d)
+		}
+		// With downloads apart, the whole data folder is mounted in parts,
+		// and each part must exist.
+		if cfg.SplitDownloads() && mountsWholeData(a) {
+			for _, d := range append([]string{"media"}, stack.DownloadFolders...) {
+				add(d)
 			}
 		}
 	}
 	return out
+}
+
+func mountsWholeData(a catalog.App) bool {
+	for _, spec := range a.Volumes {
+		if src, _, _ := strings.Cut(spec, ":"); src == "data" {
+			return true
+		}
+	}
+	return false
+}
+
+// hostDir is a data folder on this machine. External ones are on a drive
+// of the person's choosing, whose filesystem may not support ownership.
+type hostDir struct {
+	Path     string
+	External bool
+}
+
+// dataDirs lists the data folders to create on this machine: in the data
+// folder and on folder storages. Folders on network shares are created by
+// storage.Prepare through Docker.
+func dataDirs(cfg *stack.Config, apps []catalog.App) []hostDir {
+	var out []hostDir
+	seen := map[string]bool{}
+	for _, sub := range dataSubs(cfg, apps) {
+		loc := cfg.Locate(sub)
+		var d hostDir
+		switch {
+		case loc.Storage == nil:
+			d = hostDir{Path: filepath.Join(cfg.Abs(loc.Root), filepath.FromSlash(loc.Rel))}
+		case loc.Storage.Type == stack.StorageFolder:
+			d = hostDir{Path: filepath.Join(filepath.FromSlash(loc.Root), filepath.FromSlash(loc.Rel)), External: true}
+		default:
+			continue
+		}
+		if !seen[d.Path] {
+			seen[d.Path] = true
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// NetworkDirs lists, per network storage volume, the folders inside the
+// share that the apps use.
+func NetworkDirs(cfg *stack.Config, apps []catalog.App) map[string][]string {
+	out := map[string][]string{}
+	for _, sub := range dataSubs(cfg, apps) {
+		loc := cfg.Locate(sub)
+		if loc.Storage == nil || loc.Storage.Type == stack.StorageFolder {
+			continue
+		}
+		name := cfg.VolumeName(loc.Storage)
+		if p := strings.Trim(joinSub(loc.Root, loc.Rel), "/"); p != "" && !slices.Contains(out[name], p) {
+			out[name] = append(out[name], p)
+		} else if _, ok := out[name]; !ok {
+			out[name] = nil
+		}
+	}
+	return out
+}
+
+// checkStorage fails if a drive an area lives on is not there. Creating the
+// folders anyway would quietly fill the system disk below the mount point.
+func checkStorage(cfg *stack.Config) error {
+	for _, a := range stack.Areas {
+		p, ok := cfg.Areas[a.ID]
+		if !ok || p.Storage == "" || p.Storage == stack.DataFolder {
+			continue
+		}
+		s := cfg.StorageByID(p.Storage)
+		if s.Type != stack.StorageFolder {
+			continue
+		}
+		if fi, err := os.Stat(s.Path); err != nil || !fi.IsDir() {
+			return fmt.Errorf("%s are on %s (%s), which is not there; connect the drive or choose another place under Settings > Storage",
+				a.Name, storageName(s), s.Path)
+		}
+	}
+	return nil
+}
+
+func storageName(s *stack.Storage) string {
+	if s.Name != "" {
+		return s.Name
+	}
+	return s.ID
 }
 
 // composePath writes a host path the way compose expects it: relative paths

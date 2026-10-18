@@ -1,4 +1,4 @@
-package web
+package storage
 
 import (
 	"syscall"
@@ -7,8 +7,8 @@ import (
 
 var getDiskFreeSpaceEx = syscall.NewLazyDLL("kernel32.dll").NewProc("GetDiskFreeSpaceExW")
 
-// diskSpace returns the size and the free space of the volume that holds path.
-func diskSpace(path string) (total, free uint64, err error) {
+// Space returns the size and the free space of the volume that holds path.
+func Space(path string) (total, free uint64, err error) {
 	p, err := syscall.UTF16PtrFromString(path)
 	if err != nil {
 		return 0, 0, err

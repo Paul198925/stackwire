@@ -95,3 +95,16 @@ func (s *Secrets) Save() error {
 	}
 	return writeFile(s.path, []byte(b.String()), 0o600)
 }
+
+// Keys lists the names of all values.
+func (s *Secrets) Keys() []string {
+	keys := make([]string, 0, len(s.vals))
+	for k := range s.vals {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// Delete removes a value.
+func (s *Secrets) Delete(name string) { delete(s.vals, name) }

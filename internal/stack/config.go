@@ -29,6 +29,10 @@ type Config struct {
 	// AppSettings holds the user's values for the settings apps declare,
 	// by app ID and setting key.
 	AppSettings map[string]map[string]string `yaml:"appSettings,omitempty"`
+	// Storage lists drives and shares besides the data folder; Areas says
+	// which area lives where. Areas without an entry stay in the data folder.
+	Storage []Storage        `yaml:"storage,omitempty"`
+	Areas   map[string]Place `yaml:"areas,omitempty"`
 
 	Dir string `yaml:"-"` // directory that contains stackwire.yaml
 }
@@ -104,7 +108,7 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("port %d for %s is out of range", p, id)
 		}
 	}
-	return nil
+	return c.validateStorage()
 }
 
 // HostPort is the port an app's web UI is published on: the user's choice,

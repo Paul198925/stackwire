@@ -18,6 +18,7 @@ import (
 	"stackwire/internal/dockerx"
 	"stackwire/internal/render"
 	"stackwire/internal/stack"
+	"stackwire/internal/storage"
 	"stackwire/internal/wire"
 )
 
@@ -205,6 +206,9 @@ func Up(s *Stack, out io.Writer, timeout time.Duration) error {
 	if len(s.Apps) > 0 {
 		// The proxy starts last: a fresh *arr app lets the first visitor create
 		// the login, so nothing is reachable from outside before that is set.
+		if err := storage.Prepare(s.Cfg, s.Secrets, s.Apps, out); err != nil {
+			return err
+		}
 		up := append([]string{"up", "-d", "--remove-orphans"}, render.AppServices(s.Apps)...)
 		if err := dockerx.Compose(s.Cfg.Dir, out, up...); err != nil {
 			return err

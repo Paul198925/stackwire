@@ -257,3 +257,7 @@ func TestPasswordAndLogout(t *testing.T) {
 		t.Errorf("state after logout = %d", code)
 	}
 }
+
+func quote(s string) string { b, _ := json.Marshal(s); return string(b) }
+
+func toJSON(v any) string { b, _ := json.Marshal(v); return string(b) }
