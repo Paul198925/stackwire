@@ -314,6 +314,54 @@ func UpToDate(cfg *stack.Config, apps []catalog.App) bool {
 	return err == nil && string(have) == Caddyfile(cfg, apps)
 }
 
+// HostPort is a port the stack publishes on the host.
+type HostPort struct {
+	Port     int
+	Proto    string // "tcp" or "udp"
+	App      string // app ID, or ProxyService
+	Settable bool   // the web UI port, which `ports` in stackwire.yaml can move
+}
+
+// HostPorts lists the ports the stack publishes on the host, as written to
+// docker-compose.yml.
+func HostPorts(cfg *stack.Config, apps []catalog.App) ([]HostPort, error) {
+	var out []HostPort
+	for _, a := range apps {
+		out = append(out, HostPort{cfg.HostPort(a.ID, a.DefaultHostPort()), "tcp", a.ID, true})
+		for _, spec := range a.ExtraPorts {
+			p, err := parsePortSpec(spec)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", a.ID, err)
+			}
+			p.App = a.ID
+			out = append(out, p)
+		}
+	}
+	if cfg.Domain != "" {
+		out = append(out, HostPort{80, "tcp", ProxyService, false}, HostPort{443, "tcp", ProxyService, false}, HostPort{443, "udp", ProxyService, false})
+	}
+	return out, nil
+}
+
+// parsePortSpec reads the host side of a compose port like "6881:6881/udp".
+func parsePortSpec(spec string) (HostPort, error) {
+	p := HostPort{Proto: "tcp"}
+	s := spec
+	if i := strings.LastIndex(s, "/"); i >= 0 {
+		s, p.Proto = s[:i], s[i+1:]
+	}
+	parts := strings.Split(s, ":")
+	if len(parts) < 2 {
+		return p, fmt.Errorf("port %q has no host port", spec)
+	}
+	n, err := strconv.Atoi(parts[len(parts)-2])
+	if err != nil || n < 1 || n > 65535 {
+		return p, fmt.Errorf("port %q has no valid host port", spec)
+	}
+	p.Port = n
+	return p, nil
+}
+
 // CaddyfilePath is where the proxy configuration is written in domain mode.
 func CaddyfilePath(cfg *stack.Config) string {
 	return filepath.Join(cfg.Dir, "caddy", "Caddyfile")

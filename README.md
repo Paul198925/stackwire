@@ -34,12 +34,13 @@ Apps that need their own database or cache get them as extra containers, which o
 
 ## What `stackwire up` does
 
-1. Generates `docker-compose.yml`, a `.env` with random secrets, and the folder layout.
-2. Starts the containers and waits until each one answers.
-3. Configures them through their APIs:
+1. Checks that the ports it publishes are free. If another program holds one, it stops before anything starts and suggests a free port for `ports` in `stackwire.yaml`.
+2. Generates `docker-compose.yml`, a `.env` with random secrets, and the folder layout.
+3. Starts the containers and waits until each one answers.
+4. Configures them through their APIs:
    - one admin login for every app
    - the connections between them, as listed under [Apps](#apps)
-4. With `--domain`: starts Caddy with HTTPS on `https://<app>.<domain>`.
+5. With `--domain`: starts Caddy with HTTPS on `https://<app>.<domain>`.
 
 Every step checks the current state first. Running `up` or `wire` again changes nothing that is already set.
 

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"stackwire/internal/render"
@@ -67,6 +68,23 @@ func ProjectDirs(name string) ([]string, error) {
 	}
 	return dirs, nil
 }
+
+// ProjectPorts returns the host ports that the running containers of a
+// compose project publish, as "8080/tcp".
+func ProjectPorts(name string) (map[string]bool, error) {
+	out, err := Output("ps", "--filter", "label=com.docker.compose.project="+name, "--format", "{{.Ports}}")
+	if err != nil {
+		return nil, err
+	}
+	ports := map[string]bool{}
+	for _, m := range publishedRe.FindAllStringSubmatch(string(out), -1) {
+		ports[m[1]+"/"+m[2]] = true
+	}
+	return ports, nil
+}
+
+// Matches "0.0.0.0:8080->8080/tcp" and "[::]:6881->6881/udp".
+var publishedRe = regexp.MustCompile(`:(\d+)->\d+/(tcp|udp)`)
 
 var errNoDocker = errors.New("docker not found in PATH; install Docker Engine or Docker Desktop first")
 

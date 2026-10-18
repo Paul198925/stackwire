@@ -64,6 +64,25 @@ func TestComposeLANMode(t *testing.T) {
 	}
 }
 
+func TestHostPorts(t *testing.T) {
+	cfg, apps := mediaStack(t)
+	cfg.Ports = map[string]int{"qbittorrent": 8081}
+	cfg.Domain, cfg.Email = "example.com", "me@example.com"
+	ports, err := HostPorts(cfg, apps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, p := range ports {
+		got[p.App+" "+strconv.Itoa(p.Port)+"/"+p.Proto+" "+strconv.FormatBool(p.Settable)] = true
+	}
+	for _, want := range []string{"qbittorrent 8081/tcp true", "qbittorrent 6881/udp false", "sonarr 8989/tcp true", "proxy 443/udp false"} {
+		if !got[want] {
+			t.Errorf("missing %s in %v", want, ports)
+		}
+	}
+}
+
 func TestComposeDomainMode(t *testing.T) {
 	cfg, apps := mediaStack(t)
 	cfg.Domain, cfg.Email = "example.com", "me@example.com"

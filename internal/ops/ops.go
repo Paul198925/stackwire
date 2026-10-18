@@ -4,8 +4,10 @@ package ops
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -90,6 +92,90 @@ func CheckProject(cfg *stack.Config) error {
 	return nil
 }
 
+// CheckPorts fails if a port the stack publishes is taken by another
+// program, or by two apps of the stack, before anything is started. Ports
+// held by the stack's own running containers are fine.
+func CheckPorts(s *Stack) error {
+	ports, err := render.HostPorts(s.Cfg, s.Apps)
+	if err != nil {
+		return err
+	}
+	own, err := dockerx.ProjectPorts(s.Cfg.Name)
+	if err != nil {
+		return err
+	}
+	return checkPorts(ports, s.Apps, func(port int, proto string) bool {
+		return own[fmt.Sprintf("%d/%s", port, proto)] || portFree(port, proto)
+	})
+}
+
+func checkPorts(ports []render.HostPort, apps []catalog.App, free func(port int, proto string) bool) error {
+	names := map[string]string{render.ProxyService: "the HTTPS proxy"}
+	for _, a := range apps {
+		names[a.ID] = a.Name
+	}
+	key := func(port int, proto string) string { return fmt.Sprintf("%d/%s", port, proto) }
+	used := map[string]string{}
+	var problems []string
+	for _, p := range ports {
+		k := key(p.Port, p.Proto)
+		if other, ok := used[k]; ok {
+			if other != p.App {
+				problems = append(problems, fmt.Sprintf("port %s is set for both %s and %s; give one of them another port under \"ports\" in %s",
+					k, names[other], names[p.App], stack.ConfigFile))
+			}
+			continue
+		}
+		used[k] = p.App
+	}
+	for _, p := range ports {
+		if free(p.Port, p.Proto) {
+			continue
+		}
+		msg := fmt.Sprintf("port %s for %s is in use by another program", key(p.Port, p.Proto), names[p.App])
+		if p.Settable {
+			alt := 0
+			for c := p.Port + 1; c <= 65535 && c < p.Port+200; c++ {
+				if _, taken := used[key(c, "tcp")]; !taken && free(c, "tcp") {
+					alt = c
+					break
+				}
+			}
+			if alt != 0 {
+				msg += fmt.Sprintf("; pick another one in the web interface or in %s, e.g.\n    ports:\n        %s: %d", stack.ConfigFile, p.App, alt)
+			} else {
+				msg += fmt.Sprintf("; pick another one in the web interface or under \"ports\" in %s", stack.ConfigFile)
+			}
+		} else {
+			msg += "; stop that program, this port cannot be changed"
+		}
+		problems = append(problems, msg)
+	}
+	if len(problems) > 0 {
+		return errors.New(strings.Join(problems, "\n"))
+	}
+	return nil
+}
+
+// portFree reports whether a port can be opened on all interfaces.
+func portFree(port int, proto string) bool {
+	addr := fmt.Sprintf(":%d", port)
+	if proto == "udp" {
+		c, err := net.ListenPacket("udp", addr)
+		if err != nil {
+			return false
+		}
+		c.Close()
+		return true
+	}
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		return false
+	}
+	l.Close()
+	return true
+}
+
 func samePath(a, b string) bool {
 	a, b = filepath.Clean(a), filepath.Clean(b)
 	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
@@ -107,6 +193,9 @@ func Up(s *Stack, out io.Writer, timeout time.Duration) error {
 	if !render.HasServices(s.Cfg, s.Apps) {
 		fmt.Fprintln(out, "No apps selected, removing the containers.")
 		return dockerx.Project(s.Cfg.Name, out, "down", "--remove-orphans")
+	}
+	if err := CheckPorts(s); err != nil {
+		return err
 	}
 	oldCaddyfile, _ := os.ReadFile(render.CaddyfilePath(s.Cfg))
 	ctx, err := s.Render(out)

@@ -39,7 +39,7 @@ func (immich) Wire(c *Ctx, a catalog.App) error {
 		return err
 	}
 	if config.IsInitialized {
-		c.logf(a, "admin account already exists")
+		c.logf(a, "admin account already exists; sign in with %s", email)
 	} else {
 		signup := map[string]string{"email": email, "password": pass, "name": c.Secrets.Get(stack.AdminUser)}
 		if err := doJSON(c.HTTP, "POST", base+"/auth/admin-sign-up", nil, signup, nil); err != nil {
