@@ -73,7 +73,7 @@ func (c *Config) Save() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(c.Dir, ConfigFile), b, 0o644)
+	return writeFile(filepath.Join(c.Dir, ConfigFile), b, 0o644)
 }
 
 var (

@@ -93,5 +93,5 @@ func (s *Secrets) Save() error {
 	for _, k := range keys {
 		fmt.Fprintf(&b, "%s=%s\n", k, s.vals[k])
 	}
-	return os.WriteFile(s.path, []byte(b.String()), 0o600)
+	return writeFile(s.path, []byte(b.String()), 0o600)
 }
