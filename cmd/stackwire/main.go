@@ -36,10 +36,14 @@ Commands:
   wire      Configure the apps of a running stack again
   status    Show the apps, their URLs and whether they answer
   down      Stop the stack (data and configuration are kept)
+  version   Print the version
 
 Every command takes --dir (default: current directory).
 Run "stackwire <command> -h" for the flags of a command.
 `
+
+// version is set at release builds with -ldflags "-X main.version=v1.2.3".
+var version = "dev"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -52,8 +56,12 @@ func main() {
 	}
 	cmd, ok := cmds[os.Args[1]]
 	if !ok {
-		if a := os.Args[1]; a == "-h" || a == "--help" || a == "help" {
+		switch os.Args[1] {
+		case "-h", "--help", "help":
 			fmt.Print(usage)
+			return
+		case "version", "--version":
+			fmt.Println("stackwire", version)
 			return
 		}
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", os.Args[1], usage)
@@ -229,6 +237,9 @@ func cmdServe(args []string) error {
 		if err := cfg.Save(); err != nil {
 			return err
 		}
+		if _, err := web.StartSetup(abs); err != nil {
+			return err
+		}
 		fmt.Printf("Created a new stack in %s\n", abs)
 	}
 	s, err := ops.Load(abs)
@@ -242,12 +253,24 @@ func cmdServe(args []string) error {
 	host, port, _ := net.SplitHostPort(ln.Addr().String())
 	ip := net.ParseIP(host)
 	local := ip != nil && ip.IsLoopback()
-	if ip == nil || ip.IsUnspecified() || local {
-		host = "localhost"
+	hosts := []string{host}
+	switch {
+	case local:
+		hosts = []string{"localhost"}
+	case ip == nil || ip.IsUnspecified():
+		// Listening everywhere: show the addresses others can use.
+		hosts = append(lanAddrs(), "localhost")
 	}
-	fmt.Printf("stackwire is running at http://%s\n", net.JoinHostPort(host, port))
-	fmt.Printf("Sign in as %q with the password in %s (%s).\n",
-		s.Secrets.Get(stack.AdminUser), filepath.Join(abs, stack.SecretsFile), stack.AdminPassword)
+	fmt.Printf("stackwire is running at http://%s\n", net.JoinHostPort(hosts[0], port))
+	if code := web.SetupCode(abs); code != "" {
+		fmt.Println("Open this link to set up the stack (the code in it is needed once):")
+		for _, h := range hosts {
+			fmt.Printf("  http://%s/?setup=%s\n", net.JoinHostPort(h, port), code)
+		}
+	} else {
+		fmt.Printf("Sign in as %q with the password in %s (%s).\n",
+			s.Secrets.Get(stack.AdminUser), filepath.Join(abs, stack.SecretsFile), stack.AdminPassword)
+	}
 	if !local {
 		fmt.Println("Note: other devices can reach this page and the connection is not encrypted. Use it on a network you trust.")
 	}
@@ -271,4 +294,28 @@ func cmdServe(args []string) error {
 	go web.ServeProxyAccess(abs, handler, os.Stdout)
 	srv := &http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	return srv.Serve(ln)
+}
+
+// lanAddrs returns this machine's IPv4 addresses other devices can reach,
+// leaving out loopback and the bridges Docker creates.
+func lanAddrs() []string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, ifc := range ifaces {
+		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 ||
+			strings.HasPrefix(ifc.Name, "docker") || strings.HasPrefix(ifc.Name, "br-") || strings.HasPrefix(ifc.Name, "veth") ||
+			strings.Contains(ifc.Name, "vEthernet") {
+			continue
+		}
+		addrs, _ := ifc.Addrs()
+		for _, a := range addrs {
+			if n, ok := a.(*net.IPNet); ok && n.IP.To4() != nil && !n.IP.IsLinkLocalUnicast() {
+				out = append(out, n.IP.String())
+			}
+		}
+	}
+	return out
 }

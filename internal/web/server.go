@@ -45,8 +45,9 @@ type Server struct {
 	// Both are replaced in tests.
 	Containers   func(project string) (map[string]string, error)
 	CheckProject func(cfg *stack.Config) error
-	// ApplyTimeout is how long an apply waits for the apps to become ready.
-	ApplyTimeout time.Duration
+	// Apply brings the running stack in line with its configuration.
+	// Replaced in tests.
+	Apply func(st *ops.Stack, out io.Writer) error
 
 	mu       sync.Mutex
 	sessions map[string]time.Time
@@ -59,7 +60,8 @@ type Server struct {
 }
 
 func New(dir string) *Server {
-	return &Server{dir: dir, Containers: composeStates, CheckProject: ops.CheckProject, ApplyTimeout: 8 * time.Minute, sessions: map[string]time.Time{}}
+	apply := func(st *ops.Stack, out io.Writer) error { return ops.Up(st, out, 8*time.Minute) }
+	return &Server{dir: dir, Containers: composeStates, CheckProject: ops.CheckProject, Apply: apply, sessions: map[string]time.Time{}}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -73,6 +75,8 @@ func (s *Server) Handler() http.Handler {
 	})
 	mux.HandleFunc("POST /api/login", s.handleLogin)
 	mux.HandleFunc("POST /api/logout", s.handleLogout)
+	mux.HandleFunc("GET /api/setup", s.handleSetupInfo)
+	mux.HandleFunc("POST /api/setup", s.handleSetup)
 	mux.HandleFunc("GET /api/state", s.auth(s.handleState))
 	mux.HandleFunc("GET /api/dashboard", s.auth(s.handleDashboard))
 	mux.HandleFunc("PUT /api/config", s.auth(s.handleConfig))
@@ -140,6 +144,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusUnauthorized, "wrong user or password")
 		return
 	}
+	s.startSession(w, r)
+	writeJSON(w, map[string]bool{"ok": true})
+}
+
+// startSession signs the browser in by setting the session cookie.
+func (s *Server) startSession(w http.ResponseWriter, r *http.Request) {
 	token := rand.Text()
 	s.mu.Lock()
 	for t, exp := range s.sessions {
@@ -153,7 +163,6 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode,
 		Secure: r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https", MaxAge: int(sessionTTL.Seconds()),
 	})
-	writeJSON(w, map[string]bool{"ok": true})
 }
 
 // tooManyFailures limits password guessing once the page is reachable from
@@ -441,7 +450,7 @@ func (s *Server) handleApply(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
-		return ops.Up(st, out, s.ApplyTimeout)
+		return s.Apply(st, out)
 	})
 }
 

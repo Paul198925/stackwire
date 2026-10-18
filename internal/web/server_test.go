@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -48,6 +49,7 @@ func setup(t *testing.T) (*client, string) {
 	srv := New(dir)
 	srv.Containers = func(string) (map[string]string, error) { return map[string]string{}, nil }
 	srv.CheckProject = func(*stack.Config) error { return nil }
+	srv.Apply = func(*ops.Stack, io.Writer) error { return nil }
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 	jar, _ := cookiejar.New(nil)

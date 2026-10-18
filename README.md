@@ -6,6 +6,23 @@ App stores like Umbrel or CasaOS start the containers and leave the rest to you:
 
 Status: early. The first stack is media.
 
+## Install
+
+On a Linux server (Debian, Ubuntu and others with systemd):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Paul198925/stackwire/main/install.sh | sudo sh
+```
+
+The script installs Docker if it is missing, puts `stackwire` in `/usr/local/bin` and runs its web interface as a service on port 8900. At the end it prints a link like `http://192.168.1.20:8900/?setup=…`. Open it and the setup walks you through the rest:
+
+1. your login, the same for every app
+2. how you reach the apps: by port on your network, or under your own domain with HTTPS
+3. which apps you want
+4. installing them, with the progress shown live
+
+The code in the link is needed once, so nobody else on the network can claim the server before you do. Running the script again updates stackwire and keeps your stack. Options: `STACKWIRE_DIR` (default `/opt/stackwire`), `STACKWIRE_VERSION`, `STACKWIRE_PORT`.
+
 ## Apps
 
 | App | What it is | What stackwire sets up |
@@ -46,9 +63,9 @@ Every step checks the current state first. Running `up` or `wire` again changes 
 
 What is left for you are the choices only you can make: your indexers in Prowlarr and, with Bazarr, your subtitle languages. `up` lists them at the end.
 
-## Usage
+## Command line
 
-Requires Docker with the compose plugin (Docker Engine on Linux, Docker Desktop on Windows and macOS).
+Everything the web interface does also works from the command line. It needs Docker with the compose plugin (Docker Engine on Linux, Docker Desktop on Windows and macOS). Binaries for Linux, macOS and Windows are on the [releases page](https://github.com/Paul198925/stackwire/releases).
 
 At home, apps reachable by port:
 
@@ -72,7 +89,9 @@ Other commands: `apps`, `render`, `wire`, `status`, `down`.
 stackwire serve --dir ~/media
 ```
 
-Open http://localhost:8900 and sign in as `admin` with `ADMIN_PASSWORD` from the stack's `.env`. In a new directory `serve` creates an empty stack, so you can do everything in the browser:
+In a new directory `serve` creates an empty stack and prints a setup link; the first visit walks through the same setup as after the [install](#install). Later visits sign in as `admin` with the password chosen there (also in the stack's `.env` as `ADMIN_PASSWORD`).
+
+The page looks like a home screen: your apps as icons to open, and an app store to add more. You can:
 
 - see at a glance what runs and what it uses: processor, memory and disk space, per app and in total, plus numbers from the apps themselves (series, movies, missing items, indexers, downloads)
 - install and remove apps, then apply the changes with one click and watch the progress
@@ -128,6 +147,8 @@ Apps are manifests in [internal/catalog/apps](internal/catalog/apps). A manifest
 go build -o bin/stackwire ./cmd/stackwire
 go test ./...
 ```
+
+A release is published by pushing a tag like `v0.1.0`: the `release` workflow builds the binaries and attaches them with their checksums. `install.sh` installs the latest release.
 
 ## Note
 

@@ -5,111 +5,198 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>stackwire</title>
 <style>
+/* Dark glass on a wallpaper, in the spirit of Umbrel's home screen. */
 :root {
-  --bg: #f6f7f9; --surface: #ffffff; --border: #dfe3e8; --text: #1b1f24; --muted: #5d6673;
-  --accent: #2f6fed; --accent-text: #ffffff; --ok: #1a7f4b; --ok-bg: #e3f4ea;
-  --warn: #8a5a00; --warn-bg: #fdf0d0; --bad: #b3261e; --bad-bg: #fbe4e2; --code: #f0f2f5;
-  --warn-fill: #d99a00; --bad-fill: #d03b3b;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #111418; --surface: #1a1e24; --border: #2c323b; --text: #e7eaee; --muted: #9aa4b2;
-    --accent: #6b9bff; --accent-text: #0b1020; --ok: #6fd39b; --ok-bg: #16301f;
-    --warn: #f0c060; --warn-bg: #352a10; --bad: #ff8f85; --bad-bg: #3a1a18; --code: #12151a;
-    --warn-fill: #fab219; --bad-fill: #e5534b;
-  }
+  color-scheme: dark;
+  --text: #f4f5f8; --muted: rgba(244,245,248,0.62); --faint: rgba(244,245,248,0.4);
+  --glass: rgba(255,255,255,0.07); --glass-strong: rgba(255,255,255,0.11); --glass-hover: rgba(255,255,255,0.14);
+  --line: rgba(255,255,255,0.09); --field: rgba(0,0,0,0.28);
+  --accent: #8b7bff; --accent-2: #5ec8ff; --accent-text: #0d0b1f;
+  --ok: #5fe0a0; --ok-bg: rgba(95,224,160,0.14); --warn: #ffcf6b; --warn-bg: rgba(255,207,107,0.14);
+  --bad: #ff8d84; --bad-bg: rgba(255,120,110,0.15); --code: rgba(255,255,255,0.08);
+  --warn-fill: #ffcf6b; --bad-fill: #ff7a70;
+  --radius: 20px; --blur: blur(28px) saturate(150%);
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+html { background: #0b0a14; }
+body { margin: 0; min-height: 100vh; color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0; z-index: -1;
+  background:
+    radial-gradient(900px 700px at 12% 8%, rgba(124,92,255,0.55), transparent 60%),
+    radial-gradient(800px 650px at 88% 18%, rgba(255,92,170,0.35), transparent 60%),
+    radial-gradient(1000px 800px at 70% 95%, rgba(40,170,255,0.38), transparent 60%),
+    radial-gradient(700px 600px at 5% 90%, rgba(255,150,80,0.22), transparent 60%),
+    linear-gradient(160deg, #15102e, #0b0a14 60%, #0a1324); }
+body::after { content: ""; position: fixed; inset: 0; z-index: -1; background: rgba(8,7,16,0.25); }
 [hidden] { display: none !important; }
-header { background: var(--surface); border-bottom: 1px solid var(--border); }
-.bar { max-width: 1040px; margin: 0 auto; padding: 0 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.brand { font-weight: 700; font-size: 17px; padding: 14px 0; letter-spacing: -0.01em; }
-nav { display: flex; gap: 4px; flex: 1; }
-nav button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); padding: 16px 12px 14px; font: inherit; cursor: pointer; }
-nav button[aria-current="page"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
-main { max-width: 1040px; margin: 0 auto; padding: 20px 16px 60px; }
-h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 28px 0 10px; font-weight: 600; }
+a { color: var(--accent-2); }
+
+/* top bar */
+header { position: relative; z-index: 5; }
+.bar { max-width: 1120px; margin: 0 auto; padding: 18px 20px 0; display: flex; align-items: center; gap: 12px; }
+.brand { font-weight: 700; font-size: 16px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; flex: 1; }
+.logo { width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: inline-grid; place-items: center; color: #fff; font-size: 14px; font-weight: 800; box-shadow: 0 4px 14px rgba(139,123,255,0.45); }
+
+/* dock */
+nav { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 10; display: flex; gap: 6px; padding: 8px;
+  background: rgba(20,18,34,0.55); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--line); border-radius: 24px; box-shadow: 0 18px 50px rgba(0,0,0,0.45); }
+nav button { width: 54px; height: 54px; border-radius: 16px; border: 0; background: var(--glass); color: var(--text); cursor: pointer; display: grid; place-items: center; position: relative; transition: transform .15s ease, background .15s ease; }
+nav button svg { width: 24px; height: 24px; }
+nav button:hover { background: var(--glass-hover); transform: translateY(-3px); }
+nav button[aria-current="page"] { background: rgba(255,255,255,0.2); }
+nav button[aria-current="page"]::after { content: ""; position: absolute; bottom: -5px; width: 4px; height: 4px; border-radius: 50%; background: var(--text); }
+nav .sep { width: 1px; background: var(--line); margin: 8px 2px; }
+nav button .tip { position: absolute; bottom: 64px; padding: 3px 9px; border-radius: 8px; background: rgba(20,18,34,0.9); font-size: 12px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .12s; }
+nav button:hover .tip, nav button:focus-visible .tip { opacity: 1; }
+
+main { max-width: 1120px; margin: 0 auto; padding: 18px 20px 130px; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 32px 0 12px; font-weight: 600; }
 h2:first-child { margin-top: 4px; }
-button, .btn { font: inherit; font-size: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--text); padding: 6px 12px; border-radius: 6px; cursor: pointer; text-decoration: none; display: inline-block; }
-button:hover, .btn:hover { border-color: var(--muted); }
-button:disabled { opacity: 0.5; cursor: default; }
-button.primary, .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+
+/* buttons */
+button, .btn { font: inherit; font-size: 14px; font-weight: 500; border: 1px solid transparent; background: var(--glass-strong); color: var(--text); padding: 7px 15px; border-radius: 999px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: background .15s ease; }
+button:hover, .btn:hover { background: var(--glass-hover); }
+button:disabled { opacity: 0.45; cursor: default; }
+button.primary, .btn.primary { background: var(--text); color: #111; font-weight: 600; }
+button.primary:hover, .btn.primary:hover { background: #fff; }
 button.danger { color: var(--bad); }
-button.link { border: 0; background: none; color: var(--muted); padding: 6px 4px; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--border); background: var(--surface); }
+button.link { background: none; color: var(--muted); padding: 6px 8px; }
+button.link:hover { color: var(--text); background: var(--glass); }
+:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+
+/* glass surfaces */
+.panel, .card, .tile, .banner, dialog, .glass { background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); border: 1px solid var(--line); border-radius: var(--radius); }
+.banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; margin-bottom: 16px; }
 .banner p { margin: 0; flex: 1; min-width: 200px; }
-.banner.warn { background: var(--warn-bg); border-color: transparent; }
-.banner.bad { background: var(--bad-bg); border-color: transparent; }
-.spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; flex: none; }
+.banner.warn { background: var(--warn-bg); }
+.banner.bad { background: var(--bad-bg); }
+.spinner { width: 18px; height: 18px; border: 2px solid var(--line); border-top-color: var(--text); border-radius: 50%; animation: spin 0.8s linear infinite; flex: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
-.card .top { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } nav button { transition: none; } }
+
+/* home */
+.greeting { text-align: center; margin: 28px 0 30px; }
+.greeting h1 { font-size: clamp(28px, 5vw, 42px); font-weight: 700; margin: 0; letter-spacing: -0.02em; }
+.greeting p { color: var(--muted); margin: 4px 0 0; }
+.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 22px 12px; max-width: 880px; margin: 0 auto 10px; }
+.home-app { display: flex; flex-direction: column; align-items: center; gap: 8px; text-decoration: none; color: var(--text); font-size: 13px; text-align: center; border-radius: 18px; padding: 6px 2px; background: none; border: 0; cursor: pointer; }
+.home-app:hover .icon { transform: scale(1.06); }
+.home-app .name { max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 6px rgba(0,0,0,0.5); }
+.home-app .state { font-size: 11px; color: var(--muted); margin-top: -6px; }
+.home-app.off .icon { filter: grayscale(0.85) brightness(0.7); }
+.icon { --c1: #8b7bff; --c2: #5ec8ff; width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; flex: none;
+  background: linear-gradient(140deg, var(--c1), var(--c2)); color: #fff; font-weight: 700; font-size: 26px; letter-spacing: -0.02em;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.25); transition: transform .15s ease; position: relative; }
+.icon.small { width: 48px; height: 48px; border-radius: 14px; font-size: 20px; }
+.icon .dot { position: absolute; right: -3px; top: -3px; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #1a1730; background: var(--faint); }
+.icon .dot.ok { background: var(--ok); } .icon .dot.warn { background: var(--warn); } .icon .dot.bad { background: var(--bad); }
+.home-empty { text-align: center; color: var(--muted); }
+
+/* app store */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.card { padding: 16px; display: flex; flex-direction: column; gap: 10px; transition: background .15s ease; }
+.card:hover { background: var(--glass-strong); }
+.card .top { display: flex; align-items: center; gap: 12px; }
+.card .top .title { flex: 1; min-width: 0; }
 .card h3 { margin: 0; font-size: 16px; }
+.card .cat { font-size: 12px; color: var(--muted); }
 .card p { margin: 0; color: var(--muted); font-size: 14px; flex: 1; }
-.card .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
-.pill { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; background: var(--code); color: var(--muted); }
+.card .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.pill { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; white-space: nowrap; background: var(--code); color: var(--muted); }
 .pill.ok { background: var(--ok-bg); color: var(--ok); }
 .pill.warn { background: var(--warn-bg); color: var(--warn); }
 .pill.bad { background: var(--bad-bg); color: var(--bad); }
 .empty { color: var(--muted); padding: 8px 0; }
-h3.group { font-size: 15px; margin: 18px 0 8px; }
+h3.group { font-size: 20px; margin: 30px 0 12px; letter-spacing: -0.01em; }
 h3.group:first-child { margin-top: 0; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
-.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+
+/* widgets */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.tile { padding: 16px 18px; }
 .tile .label { color: var(--muted); font-size: 13px; }
-.tile .value { font-size: 28px; font-weight: 600; line-height: 1.25; margin: 2px 0 8px; letter-spacing: -0.01em; }
-.tile .value small { font-size: 15px; font-weight: 400; color: var(--muted); }
-.tile .sub { color: var(--muted); font-size: 13px; margin-top: 8px; }
+.tile .value { font-size: 30px; font-weight: 700; line-height: 1.2; margin: 4px 0 10px; letter-spacing: -0.02em; }
+.tile .value small { font-size: 15px; font-weight: 500; color: var(--muted); }
+.tile .sub { color: var(--muted); font-size: 13px; margin-top: 10px; }
 /* The track is a lighter step of the fill, so the state reads across the whole bar. */
-.meter { --fill: var(--accent); height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--fill) 22%, transparent); overflow: hidden; }
+.meter { --fill: linear-gradient(90deg, var(--accent), var(--accent-2)); height: 8px; border-radius: 4px; background: rgba(255,255,255,0.1); overflow: hidden; }
 .meter span { display: block; height: 100%; min-width: 2px; background: var(--fill); border-radius: 4px; }
 .meter.warn { --fill: var(--warn-fill); }
 .meter.bad { --fill: var(--bad-fill); }
-.tablewrap { overflow-x: auto; padding: 4px 16px; }
+.tablewrap { overflow-x: auto; padding: 6px 18px; }
 table { border-collapse: collapse; width: 100%; font-size: 14px; }
-th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 th { color: var(--muted); font-weight: 600; font-size: 13px; }
 tbody tr:last-child td { border-bottom: 0; }
 th:first-child, td:first-child { padding-left: 0; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
-.facts { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; margin: 0; font-size: 14px; }
+.facts { display: grid; grid-template-columns: 1fr auto; gap: 7px 16px; margin: 0; font-size: 14px; }
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 .facts.wide { grid-template-columns: max-content 1fr; }
 .facts.wide dd { text-align: left; font-weight: 400; word-break: break-all; }
-.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
-.field { margin-bottom: 14px; max-width: 520px; }
-.field label { display: block; font-weight: 600; margin-bottom: 4px; }
-.field small { display: block; color: var(--muted); margin-top: 4px; }
-.field small a { color: var(--accent); }
-select, input[type=text], input[type=password], input[type=email], input[type=number] { font: inherit; width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); }
+
+/* forms */
+.panel { padding: 20px; margin-bottom: 16px; }
+.field { margin-bottom: 16px; max-width: 540px; }
+.field label { display: block; font-weight: 600; margin-bottom: 6px; }
+.field small { display: block; color: var(--muted); margin-top: 6px; }
+select, input[type=text], input[type=password], input[type=email], input[type=number] { font: inherit; width: 100%; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--field); color: var(--text); }
+input:focus { outline: none; border-color: var(--accent-2); box-shadow: 0 0 0 3px rgba(94,200,255,0.2); }
 .ports { display: grid; grid-template-columns: max-content 120px; gap: 8px 16px; align-items: center; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .msg { color: var(--muted); }
 .msg.bad { color: var(--bad); }
-pre { background: var(--code); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin: 0; overflow: auto; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+pre { background: rgba(0,0,0,0.35); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin: 0; overflow: auto; font: 12.5px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; word-break: break-word; color: rgba(244,245,248,0.85); }
 #activity-log { min-height: 200px; max-height: 65vh; }
-code { background: var(--code); padding: 1px 5px; border-radius: 4px; font: 13px ui-monospace, Consolas, monospace; }
-dialog { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); width: min(900px, 94vw); padding: 16px; }
-dialog::backdrop { background: rgba(0,0,0,0.45); }
+code { background: var(--code); padding: 1px 6px; border-radius: 6px; font: 13px ui-monospace, Consolas, monospace; }
+dialog { color: var(--text); width: min(900px, 94vw); padding: 18px; background: rgba(24,21,40,0.82); }
+dialog::backdrop { background: rgba(0,0,0,0.5); backdrop-filter: blur(6px); }
 dialog pre { max-height: 65vh; }
-dialog .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+dialog .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 dialog h3 { margin: 0; }
 #app-settings { width: min(520px, 94vw); }
-#login { max-width: 360px; margin: 12vh auto 0; padding: 0 16px; }
-#login h1 { font-size: 22px; margin: 0 0 4px; }
-#login p { color: var(--muted); margin: 0 0 18px; }
+
+/* sign in and setup: a centered card on the wallpaper */
+.center { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 16px; }
+.center .logo { width: 56px; height: 56px; border-radius: 18px; font-size: 28px; margin-bottom: 16px; }
+.center h1 { font-size: clamp(26px, 5vw, 38px); margin: 0; letter-spacing: -0.02em; text-align: center; }
+.center .lead { color: var(--muted); margin: 6px 0 24px; text-align: center; max-width: 520px; }
+#login .panel { width: min(380px, 100%); }
+#setup .wrap { width: min(760px, 100%); }
+#setup h2 { margin-top: 0; text-transform: none; letter-spacing: -0.01em; font-size: 20px; color: var(--text); }
+.steps { display: flex; gap: 6px; list-style: none; padding: 0; margin: 0 0 18px; flex-wrap: wrap; justify-content: center; }
+.steps li { font-size: 13px; color: var(--muted); padding: 5px 12px; border-radius: 999px; background: var(--glass); border: 1px solid var(--line); }
+.steps li[aria-current="step"] { background: var(--text); color: #111; font-weight: 600; }
+.steps li.done { color: var(--ok); background: var(--ok-bg); }
+.choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.choice { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--line); border-radius: 16px; padding: 14px; cursor: pointer; background: rgba(0,0,0,0.18); transition: background .15s ease; }
+.choice:hover { background: var(--glass); }
+.choice:has(input:checked) { border-color: var(--accent-2); background: rgba(94,200,255,0.1); }
+.choice input { margin-top: 4px; accent-color: var(--accent-2); }
+.choice b { display: block; }
+.choice span { color: var(--muted); font-size: 14px; }
+.picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.picks .choice { padding: 10px 12px; align-items: center; }
+.picks .choice input { margin-top: 0; }
+#setup h3.group { font-size: 15px; margin: 18px 0 8px; }
+details summary { cursor: pointer; color: var(--muted); margin-bottom: 12px; }
+.nav-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-top: 16px; flex-wrap: wrap; }
+.links { display: grid; gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; }
+.links li { display: flex; align-items: center; gap: 10px; }
+@media (max-width: 560px) {
+  nav button { width: 46px; height: 46px; border-radius: 14px; }
+  .home-grid { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); }
+  .icon { width: 56px; height: 56px; font-size: 22px; }
+}
 </style>
 </head>
 <body>
 
-<section id="login" hidden>
-  <h1>stackwire</h1>
-  <p>Sign in to manage your apps.</p>
+<section id="login" class="center" hidden>
+  <span class="logo">s</span>
+  <h1>Welcome back</h1>
+  <p class="lead">Sign in to manage your apps.</p>
   <form id="login-form" class="panel">
     <div class="field"><label for="l-user">User</label><input id="l-user" type="text" autocomplete="username" value="admin" required></div>
     <div class="field"><label for="l-pass">Password</label><input id="l-pass" type="password" autocomplete="current-password" required>
@@ -118,22 +205,105 @@ dialog h3 { margin: 0; }
   </form>
 </section>
 
+<section id="setup" class="center" hidden>
+  <span class="logo">s</span>
+  <h1>Welcome to stackwire</h1>
+  <p class="lead">A few questions, then stackwire installs your apps and connects them to each other.</p>
+  <div class="wrap">
+  <ol class="steps" id="setup-steps">
+    <li data-step="login">1 · Login</li><li data-step="access">2 · Access</li><li data-step="apps">3 · Apps</li><li data-step="install">4 · Install</li>
+  </ol>
+
+  <form id="setup-code" class="panel" hidden>
+    <h2>Setup code</h2>
+    <div class="field"><label for="su-code">Code</label><input id="su-code" type="text" autocomplete="off" spellcheck="false" required>
+      <small>The installer printed a link that contains it. On the server it is also in the file <code>.setup-code</code> of the stack folder, e.g. <code>sudo cat /opt/stackwire/.setup-code</code>.</small></div>
+    <div class="row"><button class="primary" type="submit">Continue</button><span id="su-code-msg" class="msg bad" role="alert"></span></div>
+  </form>
+
+  <form id="setup-form" hidden novalidate>
+    <div class="panel" data-page="login">
+      <h2>Your login</h2>
+      <p style="margin-top:0">One login for this page and every app stackwire installs.</p>
+      <div class="field"><label>User</label><code id="su-user"></code></div>
+      <div class="field"><label for="su-pass">Password</label><input id="su-pass" type="text" autocomplete="new-password" spellcheck="false">
+        <small>We made one up for you; type your own if you like. 12 to 64 characters: letters, digits and <code>. _ ~ ! @ + = , : ^ * -</code>. Save it in your password manager.</small></div>
+    </div>
+
+    <div class="panel" data-page="access" hidden>
+      <h2>How will you reach your apps?</h2>
+      <div class="choices">
+        <label class="choice"><input type="radio" name="su-mode" value="lan" checked><div><b>On my network</b><span>At home or over a VPN. Each app gets its own port, like <code id="su-lan-example"></code>.</span></div></label>
+        <label class="choice"><input type="radio" name="su-mode" value="domain"><div><b>With my own domain</b><span>From anywhere, with HTTPS: <code>https://jellyfin.your-domain</code>.</span></div></label>
+      </div>
+      <div id="su-domain-fields" hidden>
+        <div class="field"><label for="su-domain">Domain</label><input id="su-domain" type="text" placeholder="media.example.com" autocomplete="off" spellcheck="false">
+          <small>Before you continue: create a DNS entry for <code>*.<span id="su-domain-echo">your-domain</span></code> that points to this server, and open ports 80 and 443.</small></div>
+        <div class="field"><label for="su-email">Email for certificates</label><input id="su-email" type="email" placeholder="you@example.com">
+          <small>Let's Encrypt sends expiry warnings here.</small></div>
+      </div>
+    </div>
+
+    <div class="panel" data-page="apps" hidden>
+      <h2>Which apps do you want?</h2>
+      <p style="margin-top:0" class="msg">You can add or remove apps later at any time.</p>
+      <div id="su-apps"></div>
+      <details style="margin-top:16px">
+        <summary>More options</summary>
+        <div class="field"><label for="su-tz">Timezone</label><input id="su-tz" type="text" spellcheck="false"></div>
+        <div class="field"><label for="su-data">Data folder</label><input id="su-data" type="text" spellcheck="false">
+          <small>Media, downloads and documents live here. Relative paths start at the stack folder <code id="su-dir"></code>.</small></div>
+      </details>
+    </div>
+
+    <div class="panel" data-page="install" hidden>
+      <h2>Ready to install</h2>
+      <dl id="su-summary" class="facts wide"></dl>
+      <p class="msg" style="margin-bottom:0">Downloading the apps takes a few minutes the first time.</p>
+    </div>
+
+    <div class="nav-row">
+      <button type="button" id="su-back">Back</button>
+      <span id="su-msg" class="msg bad" role="alert"></span>
+      <button type="submit" class="primary" id="su-next">Next</button>
+    </div>
+  </form>
+
+  <div id="setup-progress" hidden>
+    <div class="banner" id="su-progress-banner"><span class="spinner"></span><p>Installing your apps…</p></div>
+    <pre id="su-log" tabindex="0" style="max-height:50vh"></pre>
+  </div>
+
+  <div id="setup-done" class="panel" hidden>
+    <h2>Your apps are ready</h2>
+    <ul id="su-links" class="links"></ul>
+    <div id="su-done-note"></div>
+    <p>Sign in everywhere as <code id="su-done-user"></code> with the password you chose.</p>
+    <button class="primary" id="su-finish" type="button">Go to the home screen</button>
+  </div>
+  </div>
+</section>
+
 <div id="app" hidden>
   <header><div class="bar">
-    <div class="brand">stackwire</div>
-    <nav>
-      <button data-view="dashboard">Dashboard</button>
-      <button data-view="apps">Apps</button>
-      <button data-view="settings">Settings</button>
-      <button data-view="activity">Activity</button>
-    </nav>
+    <div class="brand"><span class="logo">s</span>stackwire</div>
     <button class="link" id="logout">Sign out</button>
   </div></header>
+  <nav aria-label="Main">
+    <button data-view="dashboard" aria-label="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><span class="tip">Home</span></button>
+    <button data-view="apps" aria-label="App Store"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><path d="M17.5 14v7M14 17.5h7"/></svg><span class="tip">App Store</span></button>
+    <span class="sep"></span>
+    <button data-view="activity" aria-label="Activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span class="tip">Activity</span></button>
+    <button data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="tip">Settings</span></button>
+  </nav>
 
   <main>
     <div id="banner" aria-live="polite"></div>
 
     <section id="view-dashboard" hidden>
+      <div class="greeting"><h1 id="greet"></h1><p id="greet-sub"></p></div>
+      <div id="home-apps" class="home-grid"></div>
+      <h2>Overview</h2>
       <p id="dash-msg" class="msg">Loading…</p>
       <div id="dash-body" hidden>
         <div id="dash-tiles" class="tiles"></div>
@@ -153,9 +323,10 @@ dialog h3 { margin: 0; }
     </section>
 
     <section id="view-apps" hidden>
-      <h2>Your apps</h2>
+      <div class="greeting"><h1>App Store</h1><p>Every app comes with its login set up and connected to the others.</p></div>
+      <h2>Installed</h2>
       <div id="mine" class="grid"></div>
-      <h2>Available</h2>
+      <h2>Discover</h2>
       <div id="available"></div>
     </section>
 
@@ -388,6 +559,34 @@ function status(a) {
   return c ? ["Will be removed", "warn"] : null;
 }
 
+// Each app gets a stable color pair, picked from its ID.
+const iconColors = [["#7c5cff", "#c06bff"], ["#ff6b8b", "#ffa26b"], ["#2fb6ff", "#4f7bff"], ["#22c39a", "#7be06b"],
+  ["#ffb340", "#ff6f4d"], ["#5f6bff", "#3fd0ff"], ["#ff5fb7", "#9b6bff"], ["#18b6a4", "#2f86ff"]];
+function appIcon(a, small) {
+  let n = 0;
+  for (const ch of a.id) n = (n * 31 + ch.charCodeAt(0)) >>> 0;
+  const [c1, c2] = iconColors[n % iconColors.length];
+  return h("span", { class: "icon" + (small ? " small" : ""), style: `--c1:${c1};--c2:${c2}`, "aria-hidden": "true" }, a.name.charAt(0).toUpperCase());
+}
+
+function renderHome() {
+  const hour = new Date().getHours();
+  $("greet").textContent = (hour < 5 ? "Good night" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening") + ", " + state.adminUser;
+  const mine = state.apps.filter(a => a.selected), up = mine.filter(a => a.container === "running").length;
+  $("greet-sub").textContent = new Date().toLocaleDateString(document.documentElement.lang, { weekday: "long", day: "numeric", month: "long" }) +
+    (mine.length ? ` · ${up} of ${mine.length} apps running` : "");
+  $("home-apps").replaceChildren(...(mine.length ? mine.map(a => {
+    const st = status(a), canOpen = a.container === "running" && a.healthy && !a.internal;
+    const icon = appIcon(a);
+    icon.append(h("span", { class: "dot " + (st ? st[1] : "") }));
+    const kids = [icon, h("span", { class: "name" }, a.name), h("span", { class: "state" }, st ? st[0] : "")];
+    return canOpen
+      ? h("a", { class: "home-app", href: appURL(a), target: "_blank", rel: "noopener", title: "Open " + a.name }, ...kids)
+      : h("button", { class: "home-app off", type: "button", title: a.name + ": " + (st ? st[0] : ""), onclick: () => setView("apps") }, ...kids);
+  }) : [h("div", { class: "home-empty", style: "grid-column:1/-1" }, h("p", {}, "No apps yet."),
+      h("button", { class: "primary", onclick: () => setView("apps") }, "Open the App Store"))]));
+}
+
 function card(a) {
   const st = status(a), busy = state.job.running, running = a.container === "running";
   const actions = [];
@@ -403,7 +602,9 @@ function card(a) {
     actions.push(h("button", { disabled: busy, onclick: () => act(() => api("POST", `/api/apps/${a.id}/install`)) }, "Install"));
   }
   return h("div", { class: "card" },
-    h("div", { class: "top" }, h("h3", {}, a.name), st && h("span", { class: "pill " + st[1] }, st[0])),
+    h("div", { class: "top" }, appIcon(a, true),
+      h("div", { class: "title" }, h("h3", {}, a.name), h("div", { class: "cat" }, categoryNames[a.category] || a.category)),
+      st && h("span", { class: "pill " + st[1] }, st[0])),
     h("p", {}, a.description, !a.selected && a.requires && a.requires.length ? h("small", {}, " Also installs " + a.requires.join(" and ") + ".") : null),
     h("div", { class: "actions" }, ...actions));
 }
@@ -434,6 +635,7 @@ function render() {
   const key = JSON.stringify([state.apps, state.job.running]);
   if (key !== renderedApps) {
     renderedApps = key;
+    renderHome();
     const mine = state.apps.filter(a => a.selected || a.container), rest = state.apps.filter(a => !a.selected && !a.container);
     $("mine").replaceChildren(...(mine.length ? mine.map(card) : [h("p", { class: "empty" }, "No apps yet. Install one from the list below, then apply the changes.")]));
     const groups = {};
@@ -540,8 +742,194 @@ $("app-settings-form").addEventListener("submit", async e => {
 $("logs-refresh").addEventListener("click", loadLogs);
 $("logs-close").addEventListener("click", () => $("logs").close());
 
-setView("dashboard");
-refresh();
+// --- first-visit setup ---
+
+const setupPages = ["login", "access", "apps", "install"];
+let setupInfo = null, setupCode = "", setupPage = 0;
+
+async function boot() {
+  // After the first visit the code is kept for this tab, so a reload
+  // during the setup does not ask for it again.
+  let code = new URLSearchParams(location.search).get("setup") || "";
+  try { code = code || sessionStorage.getItem("stackwire-setup") || ""; } catch (e) {}
+  let info;
+  try { info = await api("GET", "/api/setup"); } catch (err) { info = { pending: false }; }
+  if (!info.pending) { setView("dashboard"); refresh(); return; }
+  $("setup").hidden = false;
+  if (code) await enterSetupCode(code); else showCodeForm();
+}
+
+function showCodeForm(msg) {
+  $("setup-code").hidden = false; $("setup-form").hidden = true;
+  $("su-code-msg").textContent = msg || "";
+  $("su-code").focus();
+}
+
+async function enterSetupCode(code) {
+  try {
+    setupInfo = await api("GET", "/api/setup?code=" + encodeURIComponent(code));
+  } catch (err) {
+    try { sessionStorage.removeItem("stackwire-setup"); } catch (e) {}
+    showCodeForm(err.message); return;
+  }
+  setupCode = code;
+  try { sessionStorage.setItem("stackwire-setup", code); } catch (e) {}
+  // The code is not needed in the address bar any more.
+  history.replaceState(null, "", location.pathname);
+  $("setup-code").hidden = true; $("setup-form").hidden = false;
+  fillSetup();
+  showSetupPage(0);
+}
+
+$("setup-code").addEventListener("submit", e => { e.preventDefault(); enterSetupCode($("su-code").value.trim()); });
+
+function fillSetup() {
+  const i = setupInfo;
+  $("su-user").textContent = i.adminUser; $("su-pass").value = i.password;
+  $("su-lan-example").textContent = `http://${location.hostname}:8096`;
+  let tz = i.timezone;
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || tz; } catch (e) {}
+  $("su-tz").value = tz; $("su-data").value = i.dataDir; $("su-dir").textContent = i.dir;
+  const groups = {};
+  for (const a of i.apps) (groups[a.category] = groups[a.category] || []).push(a);
+  const order = ["media", "photos", "documents", "files", "tools"];
+  const names = Object.keys(groups).sort((x, y) => (order.indexOf(x) + 1 || 99) - (order.indexOf(y) + 1 || 99));
+  const byId = Object.fromEntries(i.apps.map(a => [a.id, a]));
+  $("su-apps").replaceChildren(...names.flatMap(c => [
+    h("h3", { class: "group" }, categoryNames[c] || c),
+    h("div", { class: "picks" }, ...groups[c].map(a => h("label", { class: "choice" },
+      h("input", { type: "checkbox", value: a.id, "data-requires": (a.requires || []).join(",") }), appIcon(a, true),
+      h("div", {}, h("b", {}, a.name), h("span", {}, a.description,
+        a.requires && a.requires.length ? " Also installs " + a.requires.map(r => byId[r] ? byId[r].name : r).join(" and ") + "." : "")))))]));
+}
+
+// Choosing an app ticks the apps it needs, so the summary shows what will run.
+$("su-apps").addEventListener("change", e => {
+  if (!e.target.checked) return;
+  for (const req of (e.target.dataset.requires || "").split(",").filter(Boolean)) {
+    const box = $("su-apps").querySelector(`input[value="${req}"]`);
+    if (box) box.checked = true;
+  }
+});
+
+for (const r of document.querySelectorAll('input[name="su-mode"]')) r.addEventListener("change", () => {
+  $("su-domain-fields").hidden = setupMode() !== "domain";
+  if (setupMode() === "domain") $("su-domain").focus();
+});
+$("su-domain").addEventListener("input", () => { $("su-domain-echo").textContent = $("su-domain").value.trim() || "your-domain"; });
+
+function setupMode() { return document.querySelector('input[name="su-mode"]:checked').value; }
+function chosenApps() { return [...$("su-apps").querySelectorAll("input:checked")].map(i => i.value); }
+
+function showSetupPage(n) {
+  setupPage = n;
+  for (const p of document.querySelectorAll("#setup-form [data-page]")) p.hidden = p.dataset.page !== setupPages[n];
+  for (const [k, li] of [...document.querySelectorAll("#setup-steps li")].entries()) {
+    li.className = k < n ? "done" : "";
+    li.setAttribute("aria-current", k === n ? "step" : "false");
+  }
+  $("su-back").hidden = n === 0;
+  $("su-next").textContent = n === setupPages.length - 1 ? "Install" : "Next";
+  $("su-msg").textContent = "";
+  if (setupPages[n] === "install") renderSetupSummary();
+  const first = document.querySelector(`#setup-form [data-page="${setupPages[n]}"] input:not([type=radio]):not([type=checkbox])`);
+  if (first && setupPages[n] === "login") first.focus();
+}
+
+// Checks the current page before moving on; the server checks everything again.
+function setupPageError() {
+  switch (setupPages[setupPage]) {
+    case "login":
+      if (!/^[A-Za-z0-9._~!@+=,:^*-]{12,64}$/.test($("su-pass").value)) return "The password needs 12 to 64 characters: letters, digits and . _ ~ ! @ + = , : ^ * -";
+      break;
+    case "access":
+      if (setupMode() === "domain") {
+        if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test($("su-domain").value.trim())) return "Enter a domain like media.example.com.";
+        if (!$("su-email").checkValidity() || !$("su-email").value.trim()) return "Enter an email address for the certificates.";
+      }
+      break;
+    case "apps":
+      if (!chosenApps().length && setupMode() !== "domain") return "Choose at least one app.";
+      break;
+  }
+  return "";
+}
+
+function renderSetupSummary() {
+  const names = Object.fromEntries(setupInfo.apps.map(a => [a.id, a.name]));
+  const apps = chosenApps();
+  const rows = [
+    ["Login", setupInfo.adminUser + " with your password"],
+    ["Access", setupMode() === "domain" ? "https://<app>." + $("su-domain").value.trim().toLowerCase() : "By port on your network"],
+    ["Apps", apps.length ? apps.map(id => names[id]).join(", ") : "None yet"],
+    ["Timezone", $("su-tz").value], ["Data folder", $("su-data").value],
+  ];
+  $("su-summary").replaceChildren(...rows.flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v)]));
+}
+
+$("su-back").addEventListener("click", () => showSetupPage(Math.max(0, setupPage - 1)));
+$("setup-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const err = setupPageError();
+  if (err) { $("su-msg").textContent = err; return; }
+  if (setupPage < setupPages.length - 1) { showSetupPage(setupPage + 1); return; }
+  $("su-next").disabled = true;
+  const domain = setupMode() === "domain";
+  try {
+    const res = await api("POST", "/api/setup", {
+      code: setupCode, password: $("su-pass").value, apps: chosenApps(),
+      domain: domain ? $("su-domain").value.trim() : "", email: domain ? $("su-email").value.trim() : "",
+      timezone: $("su-tz").value.trim(), dataDir: $("su-data").value.trim(),
+    });
+    jobId = res.job; jobOffset = 0; jobLog = "";
+    try { sessionStorage.removeItem("stackwire-setup"); } catch (e) {}
+    $("setup-form").hidden = true; $("setup-progress").hidden = false;
+    for (const li of document.querySelectorAll("#setup-steps li")) { li.className = li.dataset.step === "install" ? "" : "done"; li.setAttribute("aria-current", li.dataset.step === "install" ? "step" : "false"); }
+    followSetupJob();
+  } catch (err) { $("su-msg").textContent = err.message; }
+  $("su-next").disabled = false;
+});
+
+async function followSetupJob() {
+  let s;
+  try { s = await api("GET", `/api/state?job=${jobId}&offset=${jobOffset}`); }
+  catch (err) { setTimeout(followSetupJob, 2000); return; }
+  if (s.job.id === jobId) { jobLog += s.job.log; jobOffset = s.job.offset; }
+  const log = $("su-log"), atEnd = log.scrollTop + log.clientHeight >= log.scrollHeight - 30;
+  log.textContent = jobLog || "Starting…";
+  if (atEnd) log.scrollTop = log.scrollHeight;
+  if (s.job.running) { setTimeout(followSetupJob, 1000); return; }
+  state = s;
+  if (s.job.error) {
+    $("su-progress-banner").className = "banner bad";
+    $("su-progress-banner").replaceChildren(h("p", {}, "The installation stopped: " + s.job.error),
+      h("button", { onclick: finishSetup }, "Go to the dashboard"));
+    return;
+  }
+  showSetupDone(s);
+}
+
+function showSetupDone(s) {
+  $("setup-progress").hidden = true; $("setup-done").hidden = false;
+  for (const li of document.querySelectorAll("#setup-steps li")) { li.className = "done"; li.setAttribute("aria-current", "false"); }
+  const apps = s.apps.filter(a => a.selected && !a.internal);
+  $("su-links").replaceChildren(...apps.map(a => h("li", {}, appIcon(a, true), h("b", {}, a.name), h("a",{ href: appURL(a), target: "_blank", rel: "noopener" }, appURL(a)))));
+  const todo = jobLog.split("\n").filter(l => l.startsWith("Left to do in ")).map(l => l.replace(/^Left to do in /, ""));
+  const note = $("su-done-note");
+  note.replaceChildren();
+  if (todo.length) note.append(h("b", {}, "Left for you: "), h("ul", {}, ...todo.map(t => h("li", {}, t))));
+  if (s.uiUrl) note.append(h("p", {}, "This page is also at ", h("a", { href: s.uiUrl }, s.uiUrl), " as soon as the DNS entry points to this server. Use that address from now on: it is encrypted."));
+  $("su-done-user").textContent = s.adminUser;
+}
+
+function finishSetup() {
+  $("setup").hidden = true;
+  setView("dashboard");
+  refresh();
+}
+$("su-finish").addEventListener("click", finishSetup);
+
+boot();
 </script>
 </body>
 </html>
